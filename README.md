@@ -36,6 +36,10 @@ There are surely plenty of other use cases (I have a few in mind 😉), but I'd 
 - ⚡ **Zero Dependencies** - Lightweight core library with no runtime dependencies
 - 🔄 **Hot Route Replacement** - Development mode with automatic route updates
 
+## Demo
+
+The example made with [Workerify](https://github.com/anthonny/workerify) and [htmx](https://htmx.org/) is available [here](https://anthonnyquerouil.me/workerify-examples/htmx/)
+
 ## Installation
 
 ```bash
