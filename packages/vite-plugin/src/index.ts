@@ -5,6 +5,7 @@ import { SW_TEMPLATE } from './generated/service-worker-template.js';
 interface Plugin {
   name: string;
   enforce?: 'pre' | 'post';
+  configResolved?: (config: any) => void;
   configureServer?: (server: any) => void;
   generateBundle?: (this: PluginContext) => void;
   resolveId?: (id: string) => string | null;
@@ -28,17 +29,32 @@ export default function workerifyPlugin(
     : (opts.scope ?? '') + '/';
   const swFileName = opts.swFileName ?? 'workerify-sw.js';
 
-  // on garde le contenu en mémoire, pas besoin de fichier sur disque
+  // keep content in memory, no need for file on disk
   const swSource = SW_TEMPLATE;
 
-  // URL publique finale du SW (ex: /workerify-sw.js)
-  const publicSwUrl = '/' + swFileName.replace(/^\//, '');
+  // Variable to store Vite's base path
+  let viteBasePath = '/';
+
+  // Final public SW URL will be calculated with the base path
+  let publicSwUrl = '/' + swFileName.replace(/^\//, '');
 
   return {
     name: 'vite:workerify',
     enforce: 'pre',
 
-    // Dev server: servir le fichier SW en mémoire
+    // Hook into Vite config to get base path
+    configResolved(config: any) {
+      // Get the base path from Vite config (defaults to '/')
+      viteBasePath = config.base || '/';
+      // Ensure base path ends with '/'
+      if (!viteBasePath.endsWith('/')) {
+        viteBasePath = viteBasePath + '/';
+      }
+      // Update the public SW URL with the base path
+      publicSwUrl = viteBasePath + swFileName.replace(/^\//, '');
+    },
+
+    // Dev server: serve the SW file from memory
     configureServer(server: any) {
       server.middlewares.use((req: any, res: any, next: any) => {
         if (req.url === publicSwUrl) {
@@ -50,7 +66,7 @@ export default function workerifyPlugin(
       });
     },
 
-    // Build: émettre l'asset SW dans dist/
+    // Build: emit the SW asset to dist/
     generateBundle() {
       this.emitFile({
         type: 'asset',
@@ -59,7 +75,7 @@ export default function workerifyPlugin(
       });
     },
 
-    // Module virtuel pour l'enregistrement
+    // Virtual module for registration
     resolveId(id: string) {
       if (id === 'virtual:workerify-register') {
         return '\0virtual:workerify-register';

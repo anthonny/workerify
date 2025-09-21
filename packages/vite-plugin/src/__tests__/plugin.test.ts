@@ -27,6 +27,7 @@ describe('Workerify Vite Plugin', () => {
 
       expect(plugin.name).toBe('vite:workerify');
       expect(plugin.enforce).toBe('pre');
+      expect(typeof plugin.configResolved).toBe('function');
       expect(typeof plugin.configureServer).toBe('function');
       expect(typeof plugin.generateBundle).toBe('function');
       expect(typeof plugin.resolveId).toBe('function');
@@ -78,6 +79,118 @@ describe('Workerify Vite Plugin', () => {
       const virtualModule = plugin.load?.('\0virtual:workerify-register');
       expect(virtualModule).toContain('leading-slash-sw.js');
       expect(virtualModule).not.toContain('//leading-slash-sw.js');
+    });
+  });
+
+  describe('Base path configuration', () => {
+    it('should handle base path from Vite config', () => {
+      const plugin = workerifyPlugin();
+
+      // Simulate Vite calling configResolved with a base path
+      plugin.configResolved?.({ base: '/app/' });
+
+      // Load the virtual module and check it contains the correct URL
+      const virtualModule = plugin.load?.('\0virtual:workerify-register');
+      expect(virtualModule).toContain('/app/workerify-sw.js');
+    });
+
+    it('should handle base path without trailing slash', () => {
+      const plugin = workerifyPlugin();
+
+      plugin.configResolved?.({ base: '/myapp' });
+
+      const virtualModule = plugin.load?.('\0virtual:workerify-register');
+      expect(virtualModule).toContain('/myapp/workerify-sw.js');
+    });
+
+    it('should handle empty base path', () => {
+      const plugin = workerifyPlugin();
+
+      plugin.configResolved?.({ base: '' });
+
+      const virtualModule = plugin.load?.('\0virtual:workerify-register');
+      expect(virtualModule).toContain('/workerify-sw.js');
+    });
+
+    it('should handle undefined base path', () => {
+      const plugin = workerifyPlugin();
+
+      plugin.configResolved?.({});
+
+      const virtualModule = plugin.load?.('\0virtual:workerify-register');
+      expect(virtualModule).toContain('/workerify-sw.js');
+    });
+
+    it('should handle base path with custom SW filename', () => {
+      const plugin = workerifyPlugin({ swFileName: 'custom-sw.js' });
+
+      plugin.configResolved?.({ base: '/my-app/' });
+
+      const virtualModule = plugin.load?.('\0virtual:workerify-register');
+      expect(virtualModule).toContain('/my-app/custom-sw.js');
+    });
+
+    it('should serve SW at correct URL with base path in dev', async () => {
+      const plugin = workerifyPlugin({ swFileName: 'test-sw.js' });
+
+      // Set base path
+      plugin.configResolved?.({ base: '/base/' });
+
+      // Configure server
+      plugin.configureServer?.(mockServer);
+
+      const middleware = captureMockMiddleware(mockServer);
+
+      // Request with base path
+      const req = createMockRequest('/base/test-sw.js');
+      const res = createMockResponse();
+
+      const handled = await callMiddleware(middleware, req, res);
+
+      expect(handled).toBe(true);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/javascript');
+      expect(res.end).toHaveBeenCalledWith(expect.any(String));
+    });
+
+    it('should not serve SW at wrong base path', async () => {
+      const plugin = workerifyPlugin({ swFileName: 'test-sw.js' });
+
+      // Set base path
+      plugin.configResolved?.({ base: '/correct-base/' });
+
+      // Configure server
+      plugin.configureServer?.(mockServer);
+
+      const middleware = captureMockMiddleware(mockServer);
+
+      // Request without base path (wrong URL)
+      const req = createMockRequest('/test-sw.js');
+      const res = createMockResponse();
+
+      const handled = await callMiddleware(middleware, req, res);
+
+      expect(handled).toBe(false);
+      expect(res.setHeader).not.toHaveBeenCalled();
+      expect(res.end).not.toHaveBeenCalled();
+    });
+
+    it('should handle complex base paths', () => {
+      const plugin = workerifyPlugin();
+
+      plugin.configResolved?.({ base: '/path/to/app/' });
+
+      const virtualModule = plugin.load?.('\0virtual:workerify-register');
+      expect(virtualModule).toContain('/path/to/app/workerify-sw.js');
+    });
+
+    it('should handle root base path correctly', () => {
+      const plugin = workerifyPlugin();
+
+      plugin.configResolved?.({ base: '/' });
+
+      const virtualModule = plugin.load?.('\0virtual:workerify-register');
+      expect(virtualModule).toContain('/workerify-sw.js');
+      expect(virtualModule).not.toContain('//workerify-sw.js');
     });
   });
 
@@ -256,12 +369,14 @@ describe('Workerify Vite Plugin', () => {
       const plugin = workerifyPlugin();
 
       expect(plugin).toHaveProperty('name');
+      expect(plugin).toHaveProperty('configResolved');
       expect(plugin).toHaveProperty('configureServer');
       expect(plugin).toHaveProperty('generateBundle');
       expect(plugin).toHaveProperty('resolveId');
       expect(plugin).toHaveProperty('load');
 
       expect(typeof plugin.name).toBe('string');
+      expect(typeof plugin.configResolved).toBe('function');
       expect(typeof plugin.configureServer).toBe('function');
       expect(typeof plugin.generateBundle).toBe('function');
       expect(typeof plugin.resolveId).toBe('function');
