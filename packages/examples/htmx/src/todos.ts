@@ -89,7 +89,7 @@ async function todosRouter(workerify: Workerify, _options?: any) {
     },
     {
       id: `3`,
-      value: 'Rewrite Hubpress with Htmx and Workerify d fdsdf ',
+      value: 'Rewrite Hubpress with Htmx and Workerify',
       status: 'unchecked',
     },
   ];
