@@ -1,5 +1,11 @@
 # @workerify/vite-plugin
 
+## 0.1.1
+
+### Patch Changes
+
+- Use the base path if specified in the vite resolved config
+
 ## 0.1.0
 
 ### Minor Changes
