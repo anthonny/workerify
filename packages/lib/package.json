@@ -1,0 +1,57 @@
+{
+  "name": "@workerify/lib",
+  "version": "0.1.0",
+  "description": "Fastify-like router for Service Workers",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "*.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthonny/workerify.git",
+    "directory": "packages/lib"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "keywords": [
+    "service-worker",
+    "router",
+    "vite",
+    "fastify",
+    "web-workers"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "3.2.4",
+    "@vitest/ui": "3.2.4",
+    "@vitest/coverage-v8": "3.2.4",
+    "jsdom": "^27.0.0"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0"
+  }
+}
