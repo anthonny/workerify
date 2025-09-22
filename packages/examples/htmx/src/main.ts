@@ -9,7 +9,7 @@ const start = async () => {
 
     const workerify = Workerify();
     await workerify.register(todosRouter);
-    workerify.listen();
+    await workerify.listen();
     htmx.trigger('#todos', 'workerify-ready');
   } catch (err) {
     console.log(err);

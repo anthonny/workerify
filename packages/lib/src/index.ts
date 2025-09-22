@@ -13,22 +13,27 @@ export class Workerify {
   private routes: Route[] = [];
   private channel: BroadcastChannel;
   private options: WorkerifyOptions;
+  private consumerId: string;
+  private clientId: string | null = null;
 
   constructor(options: WorkerifyOptions = {}) {
     this.options = { logger: false, ...options };
     this.channel = new BroadcastChannel('workerify');
+    // Generate unique consumer ID
+    this.consumerId = `consumer-${Math.random().toString(36).substring(2)}-${Date.now()}`;
 
     this.channel.onmessage = this.handleMessage.bind(this);
 
     if (this.options.logger) {
-      console.log('[Workerify] Instance created');
+      console.log('[Workerify] Instance created with consumerId:', this.consumerId);
     }
   }
 
   private handleMessage(event: MessageEvent<BroadcastMessage>) {
     const message = event.data;
 
-    if (message.type === 'workerify:handle' && message.id && message.request) {
+    // Only handle messages targeted at this consumer
+    if (message.type === 'workerify:handle' && message.id && message.request && message.consumerId === this.consumerId) {
       this.handleRequest(message.id, message.request);
     }
   }
@@ -220,7 +225,7 @@ export class Workerify {
   ) {
     const route: Route = { method, path, handler, match };
     this.routes.push(route);
-    this.updateServiceWorkerRoutes();
+    // Removed automatic service worker update - will be done in listen()
 
     if (this.options.logger) {
       console.log(`[Workerify] Route registered: ${method || 'ALL'} ${path}`);
@@ -236,6 +241,7 @@ export class Workerify {
 
     const message: BroadcastMessage = {
       type: 'workerify:routes:update',
+      consumerId: this.consumerId,
       routes: routesForSW,
     };
     this.channel.postMessage(message);
@@ -319,7 +325,7 @@ export class Workerify {
     return this;
   }
 
-  listen() {
+  async listen() {
     if (this.options.logger) {
       console.log(
         '[Workerify] Server listening with',
@@ -328,11 +334,64 @@ export class Workerify {
       );
     }
 
-    // Update service worker with current routes
-    this.updateServiceWorkerRoutes();
+    // Register this consumer with the service worker
+    try {
+      const response = await fetch('/__workerify/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ consumerId: this.consumerId }),
+      });
 
-    // Return a promise that never resolves to keep the server "running"
-    // return new Promise<void>(() => {});
+      if (!response.ok) {
+        throw new Error(`Registration failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      this.clientId = result.clientId;
+
+      if (this.options.logger) {
+        console.log('[Workerify] Registered with service worker, clientId:', this.clientId);
+      }
+
+      // Now update routes and wait for acknowledgment
+      return new Promise<void>((resolve) => {
+        // Set up listener for acknowledgment
+        const handleRoutesAck = (event: MessageEvent<BroadcastMessage>) => {
+          const message = event.data;
+          if (
+            message.type === 'workerify:routes:update:response' &&
+            message.consumerId === this.consumerId
+          ) {
+            this.channel.removeEventListener('message', handleRoutesAck);
+            if (this.options.logger) {
+              console.log('[Workerify] Routes registered successfully');
+            }
+            resolve();
+          }
+        };
+
+        this.channel.addEventListener('message', handleRoutesAck);
+
+        // Send routes update
+        this.updateServiceWorkerRoutes();
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          this.channel.removeEventListener('message', handleRoutesAck);
+          if (this.options.logger) {
+            console.warn('[Workerify] Routes registration timeout - continuing anyway');
+          }
+          resolve();
+        }, 5000);
+      });
+    } catch (error) {
+      if (this.options.logger) {
+        console.error('[Workerify] Failed to register with service worker:', error);
+      }
+      throw error;
+    }
   }
 
   // Manual method to update routes if needed

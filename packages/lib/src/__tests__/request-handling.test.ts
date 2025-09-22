@@ -321,10 +321,12 @@ describe('Request Handling', () => {
       const handleMessage = (workerify as any).handleMessage.bind(workerify);
       const handleRequest = vi.spyOn(workerify as any, 'handleRequest').mockImplementation(() => {});
 
+      const consumerId = (workerify as any).consumerId;
       const message = {
         data: {
           type: 'workerify:handle',
           id: 'test-id',
+          consumerId: consumerId,
           request: createMockRequest('GET', 'http://localhost:3000/test')
         }
       };

@@ -36,6 +36,8 @@ export interface WorkerifyOptions {
 export interface BroadcastMessage {
   type: string;
   id?: string;
+  consumerId?: string;
+  clientId?: string;
   routes?: Array<{
     method?: HttpMethod;
     path: string;

@@ -101,10 +101,10 @@ describe('Plugin System', () => {
     });
 
     it('should allow plugins to access workerify instance methods', async () => {
-      const plugin: WorkerifyPlugin = vi.fn().mockImplementation((app) => {
+      const plugin: WorkerifyPlugin = vi.fn().mockImplementation(async (app) => {
         // Plugin can call any public method
         app.updateRoutes();
-        app.listen();
+        await app.listen();
       });
 
       await workerify.register(plugin);

@@ -4,21 +4,35 @@ console.log('[Workerify SW] Current location:', self.location.href);
 console.log('[Workerify SW] Scope:', self.registration?.scope);
 
 const CHANNEL = new BroadcastChannel('workerify');
-let routes: Array<{ method?: string; path: string; match?: string }> = [];
+// Map of clientId -> consumerId
+const clientConsumerMap = new Map<string, string>();
+// Map of consumerId -> routes
+const consumerRoutesMap = new Map<string, Array<{ method?: string; path: string; match?: string }>>();
 
 CHANNEL.onmessage = (ev) => {
   const msg = ev.data;
-  if (msg?.type === 'workerify:routes:update') {
-    console.log('[Workerify SW] Updating routes:', msg.routes);
-    routes = msg.routes || [];
+  if (msg?.type === 'workerify:routes:update' && msg.consumerId) {
+    console.log('[Workerify SW] Updating routes for consumer:', msg.consumerId, msg.routes);
+    consumerRoutesMap.set(msg.consumerId, msg.routes || []);
+
+    // Send acknowledgment
+    CHANNEL.postMessage({
+      type: 'workerify:routes:update:response',
+      consumerId: msg.consumerId,
+    });
   }
 
   if (msg?.type === 'workerify:routes:list') {
-    console.table(routes.map((r) => [r.method, r.path, r.match]));
+    console.log('[Workerify SW] Active consumers and their routes:');
+    consumerRoutesMap.forEach((routes, consumerId) => {
+      console.log(`Consumer: ${consumerId}`);
+      console.table(routes.map((r) => [r.method, r.path, r.match]));
+    });
   }
 
   if (msg?.type === 'workerify:routes:clear') {
-    routes = [];
+    consumerRoutesMap.clear();
+    clientConsumerMap.clear();
   }
 };
 
@@ -36,11 +50,44 @@ self.addEventListener('activate', (e: ExtendableEvent) => {
   e.waitUntil(
     self.clients.claim().then(() => {
       console.log('[Workerify SW] Now controlling all clients');
+      // Clean up mappings for closed clients
+      cleanupClosedClients();
     }),
   );
 });
 
-function matchRoute(url: string, method: string) {
+
+async function cleanupClosedClients() {
+  try {
+    const allClients = await self.clients.matchAll({ includeUncontrolled: true });
+    const activeClientIds = new Set(allClients.map(c => c.id));
+
+    // Remove mappings for clients that no longer exist
+    const toRemove: string[] = [];
+    clientConsumerMap.forEach((consumerId, clientId) => {
+      if (!activeClientIds.has(clientId)) {
+        toRemove.push(clientId);
+        // Also clean up routes if no other clients use this consumer
+        const hasOtherClients = Array.from(clientConsumerMap.values()).filter(
+          cid => cid === consumerId
+        ).length > 1;
+        if (!hasOtherClients) {
+          consumerRoutesMap.delete(consumerId);
+          console.log('[Workerify SW] Cleaned up consumer:', consumerId);
+        }
+      }
+    });
+
+    toRemove.forEach(clientId => {
+      clientConsumerMap.delete(clientId);
+      console.log('[Workerify SW] Cleaned up client:', clientId);
+    });
+  } catch (error) {
+    console.error('[Workerify SW] Cleanup error:', error);
+  }
+}
+
+function matchRoute(url: string, method: string, routes: Array<{ method?: string; path: string; match?: string }>) {
   const u = new URL(url);
   const pathname = u.pathname;
   method = method.toUpperCase();
@@ -102,15 +149,70 @@ console.log('[Workerify SW] Adding fetch event listener...');
 
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { request } = event;
-  const requestUrl = new URL(request.url).href;
-  const hit = matchRoute(request.url, request.method);
+  const url = new URL(request.url);
+
+  // Handle registration endpoint
+  if (url.pathname === '/__workerify/register' && request.method === 'POST') {
+    event.respondWith(handleRegistration(event));
+    return;
+  }
+
+  // Get the consumer ID for this client
+  const clientId = event.clientId || (event as any).resultingClientId;
+  const consumerId = clientId ? clientConsumerMap.get(clientId) : undefined;
+
+  if (!consumerId) {
+    // No consumer registered for this client
+    return;
+  }
+
+  // Get routes for this consumer
+  const routes = consumerRoutesMap.get(consumerId) || [];
+  const hit = matchRoute(request.url, request.method, routes);
 
   if (!hit) {
     return;
   }
 
-  event.respondWith(handle(event));
+  event.respondWith(handle(event, consumerId));
 });
+
+async function handleRegistration(event: FetchEvent): Promise<Response> {
+  try {
+    const data = await event.request.json();
+    const { consumerId } = data;
+    const clientId = event.clientId || (event as any).resultingClientId;
+
+    if (!clientId || !consumerId) {
+      return new Response(JSON.stringify({ error: 'Invalid registration' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if there's already a consumer for this client and remove it
+    const existingConsumer = clientConsumerMap.get(clientId);
+    if (existingConsumer) {
+      console.log('[Workerify SW] Replacing consumer for client:', clientId, 'old:', existingConsumer, 'new:', consumerId);
+    }
+
+    // Set the new mapping
+    clientConsumerMap.set(clientId, consumerId);
+
+    console.log('[Workerify SW] Registered consumer:', consumerId, 'for client:', clientId);
+
+    return new Response(JSON.stringify({ clientId, consumerId }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('[Workerify SW] Registration error:', error);
+    return new Response(JSON.stringify({ error: 'Registration failed' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
 
 console.log('[Workerify SW] Fetch event listener added');
 
@@ -129,7 +231,7 @@ self.clients.matchAll().then((clients: readonly Client[]) => {
   });
 });
 
-async function handle(event: FetchEvent): Promise<Response> {
+async function handle(event: FetchEvent, consumerId: string): Promise<Response> {
   const req = event.request;
   const id = Math.random().toString(36).slice(2);
   const headers: Record<string, string> = {};
@@ -144,6 +246,7 @@ async function handle(event: FetchEvent): Promise<Response> {
   CHANNEL.postMessage({
     type: 'workerify:handle',
     id,
+    consumerId,
     request: {
       url: req.url,
       method: req.method,

@@ -119,8 +119,29 @@ describe('Workerify', () => {
   });
 
   describe('Server lifecycle', () => {
-    it('should start listening', () => {
-      expect(() => workerify.listen()).not.toThrow();
+    it('should start listening', async () => {
+      // Mock fetch for registration
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ clientId: 'test-client-id' })
+      });
+
+      // Mock routes acknowledgment
+      setTimeout(() => {
+        const channel = workerify['channel'] as any;
+        if (channel && channel.listeners) {
+          channel.listeners.forEach((listener: any) => {
+            listener({
+              data: {
+                type: 'workerify:routes:update:response',
+                consumerId: (workerify as any).consumerId
+              }
+            });
+          });
+        }
+      }, 10);
+
+      await expect(workerify.listen()).resolves.not.toThrow();
     });
 
     it('should update routes manually', () => {
@@ -133,25 +154,86 @@ describe('Workerify', () => {
   });
 
   describe('Path processing', () => {
-    it('should handle exact path matching', () => {
+    it('should handle exact path matching', async () => {
       const handler = vi.fn();
       workerify.get('/exact/path', handler);
-      // The internal logic should process this as exact match
-      expect(() => workerify.listen()).not.toThrow();
+
+      // Mock fetch for registration
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ clientId: 'test-client-id' })
+      });
+
+      setTimeout(() => {
+        const channel = workerify['channel'] as any;
+        if (channel && channel.listeners) {
+          channel.listeners.forEach((listener: any) => {
+            listener({
+              data: {
+                type: 'workerify:routes:update:response',
+                consumerId: (workerify as any).consumerId
+              }
+            });
+          });
+        }
+      }, 10);
+
+      await expect(workerify.listen()).resolves.not.toThrow();
     });
 
-    it('should handle prefix path matching with wildcard', () => {
+    it('should handle prefix path matching with wildcard', async () => {
       const handler = vi.fn();
       workerify.get('/prefix/*', handler);
-      // The internal logic should process this as prefix match
-      expect(() => workerify.listen()).not.toThrow();
+
+      // Mock fetch for registration
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ clientId: 'test-client-id' })
+      });
+
+      setTimeout(() => {
+        const channel = workerify['channel'] as any;
+        if (channel && channel.listeners) {
+          channel.listeners.forEach((listener: any) => {
+            listener({
+              data: {
+                type: 'workerify:routes:update:response',
+                consumerId: (workerify as any).consumerId
+              }
+            });
+          });
+        }
+      }, 10);
+
+      await expect(workerify.listen()).resolves.not.toThrow();
     });
 
-    it('should handle parameterized paths', () => {
+    it('should handle parameterized paths', async () => {
       const handler = vi.fn();
       workerify.get('/users/:id', handler);
       workerify.get('/users/:id/posts/:postId', handler);
-      expect(() => workerify.listen()).not.toThrow();
+
+      // Mock fetch for registration
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ clientId: 'test-client-id' })
+      });
+
+      setTimeout(() => {
+        const channel = workerify['channel'] as any;
+        if (channel && channel.listeners) {
+          channel.listeners.forEach((listener: any) => {
+            listener({
+              data: {
+                type: 'workerify:routes:update:response',
+                consumerId: (workerify as any).consumerId
+              }
+            });
+          });
+        }
+      }, 10);
+
+      await expect(workerify.listen()).resolves.not.toThrow();
     });
   });
 
@@ -174,13 +256,13 @@ describe('Workerify', () => {
   });
 
   describe('Integration with BroadcastChannel', () => {
-    it('should send route updates when routes are registered', async () => {
+    it('should NOT send route updates when routes are registered (deferred to listen)', async () => {
       const channelSpy = vi.spyOn(workerify['channel'], 'postMessage');
 
       workerify.get('/test', () => 'test');
 
-      // Should have sent routes update message
-      expect(channelSpy).toHaveBeenCalled();
+      // Should NOT have sent routes update message (deferred to listen)
+      expect(channelSpy).not.toHaveBeenCalled();
     });
 
     it('should update service worker routes on listen', async () => {
@@ -190,10 +272,40 @@ describe('Workerify', () => {
       workerify.post('/test2', () => 'test2');
 
       channelSpy.mockClear();
-      workerify.listen();
+
+      // Mock fetch for registration
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ clientId: 'test-client-id' })
+      });
+
+      setTimeout(() => {
+        const channel = workerify['channel'] as any;
+        if (channel && channel.listeners) {
+          channel.listeners.forEach((listener: any) => {
+            listener({
+              data: {
+                type: 'workerify:routes:update:response',
+                consumerId: (workerify as any).consumerId
+              }
+            });
+          });
+        }
+      }, 10);
+
+      await workerify.listen();
 
       // Should send routes update on listen
-      expect(channelSpy).toHaveBeenCalled();
+      expect(channelSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'workerify:routes:update',
+          consumerId: expect.any(String),
+          routes: expect.arrayContaining([
+            expect.objectContaining({ path: '/test1', method: 'GET' }),
+            expect.objectContaining({ path: '/test2', method: 'POST' })
+          ])
+        })
+      );
     });
   });
 });
