@@ -7,12 +7,19 @@ const CHANNEL = new BroadcastChannel('workerify');
 // Map of clientId -> consumerId
 const clientConsumerMap = new Map<string, string>();
 // Map of consumerId -> routes
-const consumerRoutesMap = new Map<string, Array<{ method?: string; path: string; match?: string }>>();
+const consumerRoutesMap = new Map<
+  string,
+  Array<{ method?: string; path: string; match?: string }>
+>();
 
 CHANNEL.onmessage = (ev) => {
   const msg = ev.data;
   if (msg?.type === 'workerify:routes:update' && msg.consumerId) {
-    console.log('[Workerify SW] Updating routes for consumer:', msg.consumerId, msg.routes);
+    console.log(
+      '[Workerify SW] Updating routes for consumer:',
+      msg.consumerId,
+      msg.routes,
+    );
     consumerRoutesMap.set(msg.consumerId, msg.routes || []);
 
     // Send acknowledgment
@@ -33,6 +40,30 @@ CHANNEL.onmessage = (ev) => {
   if (msg?.type === 'workerify:routes:clear') {
     consumerRoutesMap.clear();
     clientConsumerMap.clear();
+  }
+
+  if (msg?.type === 'workerify:clients:list') {
+    console.log('[Workerify SW] Listing all clients...');
+    self.clients.matchAll({ includeUncontrolled: true }).then((clients: readonly Client[]) => {
+      console.log('[Workerify SW] Total clients found:', clients.length);
+      clients.forEach((client: Client, i: number) => {
+        console.log(`[Workerify SW] Client ${i + 1}:`, {
+          id: client.id,
+          url: client.url,
+          type: client.type,
+          frameType: client.frameType
+        });
+      });
+
+      console.log('[Workerify SW] Client-Consumer mappings:');
+      console.table(Array.from(clientConsumerMap.entries()).map(([clientId, consumerId]) => ({
+        clientId,
+        consumerId,
+        hasActiveClient: clients.some(c => c.id === clientId)
+      })));
+    }).catch((error: any) => {
+      console.error('[Workerify SW] Error listing clients:', error);
+    });
   }
 };
 
@@ -56,11 +87,17 @@ self.addEventListener('activate', (e: ExtendableEvent) => {
   );
 });
 
+// Periodically clean up mappings for closed clients
+setInterval(() => {
+  cleanupClosedClients();
+}, 30000); // Every 30 seconds
 
 async function cleanupClosedClients() {
   try {
-    const allClients = await self.clients.matchAll({ includeUncontrolled: true });
-    const activeClientIds = new Set(allClients.map(c => c.id));
+    const allClients = await self.clients.matchAll({
+      includeUncontrolled: true,
+    });
+    const activeClientIds = new Set(allClients.map((c) => c.id));
 
     // Remove mappings for clients that no longer exist
     const toRemove: string[] = [];
@@ -68,9 +105,10 @@ async function cleanupClosedClients() {
       if (!activeClientIds.has(clientId)) {
         toRemove.push(clientId);
         // Also clean up routes if no other clients use this consumer
-        const hasOtherClients = Array.from(clientConsumerMap.values()).filter(
-          cid => cid === consumerId
-        ).length > 1;
+        const hasOtherClients =
+          Array.from(clientConsumerMap.values()).filter(
+            (cid) => cid === consumerId,
+          ).length > 1;
         if (!hasOtherClients) {
           consumerRoutesMap.delete(consumerId);
           console.log('[Workerify SW] Cleaned up consumer:', consumerId);
@@ -78,7 +116,7 @@ async function cleanupClosedClients() {
       }
     });
 
-    toRemove.forEach(clientId => {
+    toRemove.forEach((clientId) => {
       clientConsumerMap.delete(clientId);
       console.log('[Workerify SW] Cleaned up client:', clientId);
     });
@@ -87,7 +125,11 @@ async function cleanupClosedClients() {
   }
 }
 
-function matchRoute(url: string, method: string, routes: Array<{ method?: string; path: string; match?: string }>) {
+function matchRoute(
+  url: string,
+  method: string,
+  routes: Array<{ method?: string; path: string; match?: string }>,
+) {
   const u = new URL(url);
   const pathname = u.pathname;
   method = method.toUpperCase();
@@ -193,13 +235,25 @@ async function handleRegistration(event: FetchEvent): Promise<Response> {
     // Check if there's already a consumer for this client and remove it
     const existingConsumer = clientConsumerMap.get(clientId);
     if (existingConsumer) {
-      console.log('[Workerify SW] Replacing consumer for client:', clientId, 'old:', existingConsumer, 'new:', consumerId);
+      console.log(
+        '[Workerify SW] Replacing consumer for client:',
+        clientId,
+        'old:',
+        existingConsumer,
+        'new:',
+        consumerId,
+      );
     }
 
     // Set the new mapping
     clientConsumerMap.set(clientId, consumerId);
 
-    console.log('[Workerify SW] Registered consumer:', consumerId, 'for client:', clientId);
+    console.log(
+      '[Workerify SW] Registered consumer:',
+      consumerId,
+      'for client:',
+      clientId,
+    );
 
     return new Response(JSON.stringify({ clientId, consumerId }), {
       status: 200,
@@ -231,7 +285,10 @@ self.clients.matchAll().then((clients: readonly Client[]) => {
   });
 });
 
-async function handle(event: FetchEvent, consumerId: string): Promise<Response> {
+async function handle(
+  event: FetchEvent,
+  consumerId: string,
+): Promise<Response> {
   const req = event.request;
   const id = Math.random().toString(36).slice(2);
   const headers: Record<string, string> = {};

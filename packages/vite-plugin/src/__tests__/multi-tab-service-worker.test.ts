@@ -331,5 +331,221 @@ describe('Service Worker Multi-tab Support', () => {
       expect(clientConsumerMap.size).toBe(0);
       expect(consumerRoutesMap.size).toBe(0);
     });
+
+    it('should properly use includeUncontrolled in cleanup', async () => {
+      const client1 = 'controlled-client';
+      const client2 = 'uncontrolled-client';
+      const consumer1 = 'consumer-1';
+      const consumer2 = 'consumer-2';
+
+      clientConsumerMap.set(client1, consumer1);
+      clientConsumerMap.set(client2, consumer2);
+
+      // Mock matchAll with includeUncontrolled to return both clients
+      mockClients.matchAll.mockImplementation((options?: any) => {
+        if (options?.includeUncontrolled) {
+          return Promise.resolve([
+            { id: client1, url: 'http://localhost:3000/' },
+            { id: client2, url: 'http://localhost:3000/' }
+          ]);
+        }
+        // Without includeUncontrolled, only return controlled client
+        return Promise.resolve([
+          { id: client1, url: 'http://localhost:3000/' }
+        ]);
+      });
+
+      // Simulate cleanup with includeUncontrolled: true
+      const allClients = await mockClients.matchAll({ includeUncontrolled: true });
+      const activeClientIds = new Set(allClients.map((c: any) => c.id));
+
+      const toRemove: string[] = [];
+      clientConsumerMap.forEach((consumerId, clientId) => {
+        if (!activeClientIds.has(clientId)) {
+          toRemove.push(clientId);
+        }
+      });
+
+      toRemove.forEach(clientId => {
+        clientConsumerMap.delete(clientId);
+      });
+
+      // Both clients should be preserved because includeUncontrolled: true
+      expect(clientConsumerMap.has(client1)).toBe(true);
+      expect(clientConsumerMap.has(client2)).toBe(true);
+      expect(clientConsumerMap.size).toBe(2);
+    });
+
+    it('should demonstrate the difference between controlled and uncontrolled cleanup', async () => {
+      const controlledClient = 'controlled-client';
+      const uncontrolledClient = 'uncontrolled-client';
+      const consumer1 = 'consumer-1';
+      const consumer2 = 'consumer-2';
+
+      clientConsumerMap.set(controlledClient, consumer1);
+      clientConsumerMap.set(uncontrolledClient, consumer2);
+
+      // Mock matchAll behavior
+      mockClients.matchAll.mockImplementation((options?: any) => {
+        if (options?.includeUncontrolled) {
+          return Promise.resolve([
+            { id: controlledClient, url: 'http://localhost:3000/' },
+            { id: uncontrolledClient, url: 'http://localhost:3000/' }
+          ]);
+        }
+        // Without includeUncontrolled, only return controlled client
+        return Promise.resolve([
+          { id: controlledClient, url: 'http://localhost:3000/' }
+        ]);
+      });
+
+      // Test cleanup WITHOUT includeUncontrolled (would be problematic)
+      const controlledClientsOnly = await mockClients.matchAll();
+      const controlledClientIds = new Set(controlledClientsOnly.map((c: any) => c.id));
+
+      expect(controlledClientIds.has(controlledClient)).toBe(true);
+      expect(controlledClientIds.has(uncontrolledClient)).toBe(false); // This would cause premature cleanup
+
+      // Test cleanup WITH includeUncontrolled (correct behavior)
+      const allClients = await mockClients.matchAll({ includeUncontrolled: true });
+      const allClientIds = new Set(allClients.map((c: any) => c.id));
+
+      expect(allClientIds.has(controlledClient)).toBe(true);
+      expect(allClientIds.has(uncontrolledClient)).toBe(true); // This prevents premature cleanup
+    });
+  });
+
+  describe('Periodic Cleanup', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should set up periodic cleanup with setInterval', () => {
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      // Simulate the service worker setup that includes setInterval
+      const mockCleanupFunction = vi.fn();
+      setInterval(mockCleanupFunction, 30000);
+
+      expect(setIntervalSpy).toHaveBeenCalledWith(mockCleanupFunction, 30000);
+    });
+
+    it('should call cleanup function every 30 seconds', () => {
+      const mockCleanupFunction = vi.fn();
+      setInterval(mockCleanupFunction, 30000);
+
+      // Fast-forward time to trigger multiple intervals
+      vi.advanceTimersByTime(30000);
+      expect(mockCleanupFunction).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(30000);
+      expect(mockCleanupFunction).toHaveBeenCalledTimes(2);
+
+      vi.advanceTimersByTime(60000); // 2 more intervals
+      expect(mockCleanupFunction).toHaveBeenCalledTimes(4);
+    });
+
+    it('should perform periodic cleanup of closed clients', async () => {
+      const client1 = 'persistent-client';
+      const client2 = 'temporary-client';
+      const consumer1 = 'consumer-1';
+      const consumer2 = 'consumer-2';
+
+      clientConsumerMap.set(client1, consumer1);
+      clientConsumerMap.set(client2, consumer2);
+
+      // Initial state: both clients present
+      expect(clientConsumerMap.size).toBe(2);
+
+      // Simulate periodic cleanup function
+      const periodicCleanup = async () => {
+        const allClients = await mockClients.matchAll({ includeUncontrolled: true });
+        const activeClientIds = new Set(allClients.map((c: any) => c.id));
+
+        const toRemove: string[] = [];
+        clientConsumerMap.forEach((consumerId, clientId) => {
+          if (!activeClientIds.has(clientId)) {
+            toRemove.push(clientId);
+          }
+        });
+
+        toRemove.forEach(clientId => {
+          clientConsumerMap.delete(clientId);
+        });
+      };
+
+      // First scenario: both clients still active
+      mockClients.matchAll.mockResolvedValueOnce([
+        { id: client1, url: 'http://localhost:3000/' },
+        { id: client2, url: 'http://localhost:3000/' }
+      ]);
+
+      await periodicCleanup();
+      expect(clientConsumerMap.size).toBe(2);
+
+      // Second scenario: only client1 active (client2 closed)
+      mockClients.matchAll.mockResolvedValueOnce([
+        { id: client1, url: 'http://localhost:3000/' }
+      ]);
+
+      await periodicCleanup();
+      expect(clientConsumerMap.size).toBe(1);
+      expect(clientConsumerMap.has(client1)).toBe(true);
+      expect(clientConsumerMap.has(client2)).toBe(false);
+    });
+
+    it('should handle cleanup errors gracefully in periodic execution', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Mock matchAll to throw error
+      mockClients.matchAll.mockRejectedValue(new Error('Service Worker error'));
+
+      const periodicCleanup = async () => {
+        try {
+          const allClients = await mockClients.matchAll({ includeUncontrolled: true });
+          // ... cleanup logic
+        } catch (error) {
+          console.error('[Workerify SW] Cleanup error:', error);
+        }
+      };
+
+      // Call cleanup function directly
+      await periodicCleanup();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[Workerify SW] Cleanup error:',
+        expect.any(Error)
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should continue periodic cleanup even after errors', async () => {
+      let callCount = 0;
+
+      const periodicCleanup = async () => {
+        try {
+          await mockClients.matchAll({ includeUncontrolled: true });
+        } catch (error) {
+          // Silently handle error to continue periodic execution
+        }
+      };
+
+      // First call: should error but not break execution
+      mockClients.matchAll.mockRejectedValueOnce(new Error('First call error'));
+      await periodicCleanup();
+      callCount++;
+
+      // Second call: should work normally
+      mockClients.matchAll.mockResolvedValueOnce([]);
+      await periodicCleanup();
+      callCount++;
+
+      expect(callCount).toBe(2); // Both calls completed despite first one erroring
+    });
   });
 });

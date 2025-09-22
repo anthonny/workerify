@@ -35,6 +35,28 @@ There are surely plenty of other use cases (I have a few in mind 😉), but I'd 
 - 🎯 **Type-Safe** - Full TypeScript support with comprehensive type definitions
 - ⚡ **Zero Dependencies** - Lightweight core library with no runtime dependencies
 - 🔄 **Hot Route Replacement** - Development mode with automatic route updates
+- 🌐 **Multi-Tab Support** - Intelligent client isolation prevents interference between browser tabs
+
+## Multi-Tab Support
+
+Workerify automatically handles multiple browser tabs of the same application running simultaneously. Each tab operates in complete isolation:
+
+- **Consumer ID System**: Each Workerify instance generates a unique consumer ID
+- **Client Mapping**: Service worker maintains a map of client IDs to consumer IDs
+- **Request Routing**: HTTP requests are routed to the correct tab based on the originating client
+- **Automatic Cleanup**: Closed tabs are automatically cleaned up to prevent memory leaks
+
+### Debug Multi-Tab Setup
+
+Check which tabs are registered and their consumer mappings:
+
+```js
+const bc = new BroadcastChannel("workerify");
+bc.postMessage({type:'workerify:clients:list'});
+// Check console for detailed client information
+```
+
+This ensures that opening multiple tabs of your application works seamlessly without interference between tabs.
 
 ## Demo
 
@@ -114,8 +136,8 @@ app.get('/api/*', async (request, reply) => {
   return { message: 'Catch-all API route', path: request.url };
 });
 
-// Start listening for requests
-app.listen();
+// Start listening for requests (now async)
+await app.listen();
 ```
 
 ### 3. Register the Service Worker
@@ -132,7 +154,7 @@ await registerWorkerifySW();
 // Create and use your Workerify instance
 const app = new Workerify({ logger: true });
 // ... add your routes
-app.listen();
+await app.listen();
 ```
 
 > **TypeScript Support**: The virtual module types are automatically included when you install `@workerify/vite-plugin`. If TypeScript doesn't recognize them, add this to your `vite-env.d.ts`:
