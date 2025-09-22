@@ -1,6 +1,6 @@
 {
   "name": "@workerify/vite-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Vite plugin for workerify",
   "type": "module",
   "main": "./dist/index.js",
