@@ -12,20 +12,13 @@ A Fastify-like router for Service Workers that enables handling HTTP requests di
 
 > ⚠️ **Early Stage Project**: This project is in very early development (started September 20, 2025). APIs may change, and some features might not be fully stable yet. Use with caution in production environments.
 
-## Why?
+## Why? For Htmx
 
-Why not? 😅
-I recently discovered [htmx](https://htmx.org/) and as I'm experiencing fatigue with JS frameworks and their growing complexity, I was really excited.
+I'm a fan of this framework’s simplicity, and I really wanted an easy way to build CSR SPAs (Client-Side Rendered Single-Page Applications).
 
-I thought this was the perfect opportunity to rewrite [hubpress](https://github.com/HubPress/hubpress.io) (it could almost be an annual joke, this rewrite 🤣) using [Htmx](https://htmx.org/).
+Give it a try — I'm sure you'll love it. [Workerify](https://github.com/anthonny/workerify) works seamlessly with [htmx](https://htmx.org/).
 
-[Hubpress](https://github.com/HubPress/hubpress.io) is a SPA without a backend that has seen several rewrites, notably in [Vue.js](https://vuejs.org/) and [React](https://react.dev/).
-
-To do the same thing with [Htmx](https://htmx.org/) which makes HTTP calls, I need to intercept the calls and create the response without leaving the browser.
-
-So I made [Workerify](https://github.com/anthonny/workerify) 🚀
-
-There are surely plenty of other use cases (I have a few in mind 😉), but I'd love to read your ideas come and discuss them on [Discord](https://discord.gg/9wW8KFXEnx).
+There are certainly plenty of other use cases (I have a few in mind 😉), but I'd love to hear your ideas. Come share them with us on [Discord](https://discord.gg/9wW8KFXEnx).
 
 ## Features
 
