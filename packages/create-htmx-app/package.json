@@ -1,0 +1,47 @@
+{
+  "name": "@workerify/create-htmx-app",
+  "version": "0.0.1",
+  "description": "Create a new HTMX app with Workerify",
+  "type": "module",
+  "bin": {
+    "create-htmx-app": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm clean && pnpm build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "prompts": "^2.4.2",
+    "degit": "^2.8.4"
+  },
+  "devDependencies": {
+    "@types/degit": "^2.8.6",
+    "@types/node": "^22.7.5",
+    "@types/prompts": "^2.4.9",
+    "typescript": "^5.9.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthonny/workerify.git",
+    "directory": "packages/templates"
+  },
+  "keywords": [
+    "htmx",
+    "vite",
+    "template",
+    "workerify",
+    "service-worker"
+  ],
+  "author": "",
+  "license": "MIT"
+}

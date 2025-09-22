@@ -1,2 +1,3 @@
 packages:
   - "packages/**"
+  - "!packages/create-htmx-app/templates/**"
