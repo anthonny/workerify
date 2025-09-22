@@ -4,6 +4,7 @@
   "scripts": {
     "lib": "pnpm -F @workerify/lib",
     "vite-plugin": "pnpm -F @workerify/vite-plugin",
+    "example-quickstart": "pnpm -F @workerify/example-quickstart",
     "example-htmx": "pnpm -F @workerify/example-htmx",
     "changeset": "pnpm dlx @changesets/cli",
     "build": "turbo run build",

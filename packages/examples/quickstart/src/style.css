@@ -1,0 +1,5 @@
+div#app.ready {
+	.loading {
+		display: none;
+	}
+}

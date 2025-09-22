@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Vite + TS</title>
+    </head>
+    <body>
+        <div id="app" hx-on:workerify-ready="this.classList.add('ready')">
+            <div class="loading">Loading</div>
+            <div>
+                <input
+                    type="text"
+                    name="todo"
+                    hx-post="/todos"
+                    hx-trigger="change"
+                    hx-swap="none"
+                    hx-on::after-request="this.value = ''"
+                    autofocus
+                />
+                <pre
+                    class="todos"
+                    hx-get="/todos"
+                    hx-trigger="todos:refresh from:body"
+                    hx-swap="innerHTML"
+                ></pre>
+            </div>
+        </div>
+        <script type="module" src="/src/main.ts"></script>
+    </body>
+</html>

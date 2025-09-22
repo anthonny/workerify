@@ -1,0 +1,22 @@
+{
+  "name": "@workerify/example-quickstart",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@workerify/vite-plugin": "workspace:*",
+    "tailwindcss": "^4.1.13",
+    "typescript": "~5.8.3",
+    "vite": "^7.1.7"
+  },
+  "dependencies": {
+    "@workerify/lib": "workspace:*",
+    "htmx.org": "^2.0.7"
+  }
+}
