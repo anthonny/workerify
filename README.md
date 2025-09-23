@@ -30,32 +30,19 @@ There are certainly plenty of other use cases (I have a few in mind 😉), but I
 - 🔄 **Hot Route Replacement** - Development mode with automatic route updates
 - 🌐 **Multi-Tab Support** - Intelligent client isolation prevents interference between browser tabs
 
-## Multi-Tab Support
-
-Workerify automatically handles multiple browser tabs of the same application running simultaneously. Each tab operates in complete isolation:
-
-- **Consumer ID System**: Each Workerify instance generates a unique consumer ID
-- **Client Mapping**: Service worker maintains a map of client IDs to consumer IDs
-- **Request Routing**: HTTP requests are routed to the correct tab based on the originating client
-- **Automatic Cleanup**: Closed tabs are automatically cleaned up to prevent memory leaks
-
-### Debug Multi-Tab Setup
-
-Check which tabs are registered and their consumer mappings:
-
-```js
-const bc = new BroadcastChannel("workerify");
-bc.postMessage({type:'workerify:clients:list'});
-// Check console for detailed client information
-```
-
-This ensures that opening multiple tabs of your application works seamlessly without interference between tabs.
-
 ## Demo
 
 The example made with [Workerify](https://github.com/anthonny/workerify) and [htmx](https://htmx.org/) is available [here](https://anthonnyquerouil.me/workerify-examples/htmx/)
 
-## Installation
+## Quick start
+
+```bash
+npx @workerify/create-htmx-app
+```
+
+## Manual Installation
+
+### 1. Installation
 
 ```bash
 # Using pnpm
@@ -68,9 +55,7 @@ npm install @workerify/lib @workerify/vite-plugin
 yarn add @workerify/lib @workerify/vite-plugin
 ```
 
-## Quick Start
-
-### 1. Configure Vite
+### 2. Configure Vite
 
 Add the Workerify plugin to your `vite.config.ts`:
 
@@ -99,7 +84,7 @@ export default defineConfig({
 });
 ```
 
-### 2. Create Your Worker Routes
+### 3. Create Your Worker Routes
 
 ```typescript
 import { Workerify } from '@workerify/lib';
@@ -133,7 +118,7 @@ app.get('/api/*', async (request, reply) => {
 await app.listen();
 ```
 
-### 3. Register the Service Worker
+### 4. Register the Service Worker
 
 In your main application:
 
@@ -155,7 +140,7 @@ await app.listen();
 > /// <reference types="@workerify/vite-plugin/client" />
 > ```
 
-### 4. List registered routes (Debug)
+### 5. List registered routes (Debug)
 
 In your browser's console:
 
@@ -163,6 +148,27 @@ In your browser's console:
 const bc = new BroadcastChannel("workerify");
 bc.postMessage({type:'workerify:routes:list'});
 ```
+
+## Multi-Tab Support
+
+Workerify automatically handles multiple browser tabs of the same application running simultaneously. Each tab operates in complete isolation:
+
+- **Consumer ID System**: Each Workerify instance generates a unique consumer ID
+- **Client Mapping**: Service worker maintains a map of client IDs to consumer IDs
+- **Request Routing**: HTTP requests are routed to the correct tab based on the originating client
+- **Automatic Cleanup**: Closed tabs are automatically cleaned up to prevent memory leaks
+
+### Debug Multi-Tab Setup
+
+Check which tabs are registered and their consumer mappings:
+
+```js
+const bc = new BroadcastChannel("workerify");
+bc.postMessage({type:'workerify:clients:list'});
+// Check console for detailed client information
+```
+
+This ensures that opening multiple tabs of your application works seamlessly without interference between tabs.
 
 ## API Reference
 
