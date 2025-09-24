@@ -1,30 +1,30 @@
 {
-  "name": "workerify-nunjucks-app",
+  "name": "workerify-handlebars-app",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run watch:templates\"",
     "dev:vite": "vite",
-    "watch:templates": "chokidar \"src/templates/**/*.njk\" -c \"npm run prebuild\"",
-    "prebuild": "nunjucks-precompile src/templates --include njk --wrapper es6 > src/templates/index.ts",
+    "watch:templates": "chokidar \"src/templates/**/*.hbs\" -c \"npm run prebuild\"",
+    "prebuild": "node scripts/compile-templates.cjs",
     "build": "vite build",
     "preview": "vite preview",
     "postinstall": "npm run prebuild"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",
-    "@types/nunjucks": "^3.2.4",
+    "@types/handlebars": "^4.1.0",
     "@workerify/vite-plugin": "latest",
     "chokidar-cli": "^3.0.0",
     "concurrently": "^9.2.1",
-    "nunjucks-es6": "file:nunjucks-es6",
+    "handlebars": "^4.7.8",
     "tailwindcss": "^4.1.13",
     "vite": "^7.1.6"
   },
   "dependencies": {
     "@workerify/lib": "latest",
-    "htmx.org": "^2.0.7",
-    "nunjucks": "^3.2.4"
+    "handlebars": "^4.7.8",
+    "htmx.org": "^2.0.7"
   }
 }

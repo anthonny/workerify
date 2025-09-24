@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link href="src/main.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div
+            class="w-screen h-screen flex justify-center items-center bg-gray-100 text-gray-800"
+        >
+            <div
+                class="flex flex-col h-full"
+                style="width: 400px; max-height: 80%"
+            >
+                <div
+                    class="flex-1 flex flex-col bg-white shadow-xl overflow-hidden"
+                >
+                    <form
+                        id="todo-form"
+                        hx-post="/api/todos"
+                        hx-swap="none"
+                        hx-on::after-request="this.reset();"
+                    >
+                        <input
+                            class="w-full px-4 py-4 shadow-sm focus:outline-hidden"
+                            type="text"
+                            id="todo-input"
+                            name="todo"
+                            placeholder="Add a todo..."
+                            autofocus
+                        />
+                    </form>
+                    <div
+                        class="flex flex-1 flex-col overflow-hidden"
+                        id="todos"
+                        hx-get="/api/todos"
+                        hx-trigger="workerify-ready, todos:refresh from:body"
+                        hx-swap="outerHTML"
+                    >
+                        <div class="flex-1 overflow-y-auto overflow-x-hidden">
+                            <!-- Todo items will be rendered here -->
+                        </div>
+                        <div id="footer">
+                            <!-- Footer will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2 text-center text-sm text-gray-800">
+                    <div>
+                        Made with ❤️ by
+                        <a
+                            href="https://bsky.app/profile/anthonnyquerouil.me"
+                            class="font-medium text-gray-800"
+                            target="_blank"
+                            >@anthonnyquerouil</a
+                        >
+                    </div>
+                    <div class="text-xs">
+                        Propulsed by
+                        <a
+                            href="https://github.com/anthonny/workerify"
+                            class="font-medium text-gray-800"
+                            target="_blank"
+                            >Workerify</a
+                        >
+                        and
+                        <a
+                            href="https://htmx.org"
+                            class="font-medium text-gray-800"
+                            target="_blank"
+                            >Htmx</a
+                        >
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script type="module" src="./src/main.ts"></script>
+    </body>
+</html>

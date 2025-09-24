@@ -1,0 +1,18 @@
+<div
+    class="flex flex-1 flex-col overflow-hidden"
+    id="todos"
+    hx-get="/api/todos?filter={{filter}}"
+    hx-trigger="sw-ready, todos:refresh from:body"
+    hx-swap="outerHTML"
+>
+  <div class="flex-1 overflow-y-auto overflow-x-hidden">
+      <!-- Todo items will be rendered here -->
+      {{#each filteredTodos}}
+        {{> viewTodo todo=this filter=../filter}}
+      {{/each}}
+  </div>
+  <div id="footer">
+      <!-- Footer will be rendered here -->
+      {{> viewFooter activeCount=filteredTodos.length filter=filter}}
+  </div>
+</div>
