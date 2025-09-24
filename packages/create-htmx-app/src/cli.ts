@@ -30,11 +30,11 @@ async function main() {
   }
 
   const template = await p.select({
-    message: 'Choose a template: (Handlebars and EJS coming soon)',
+    message: 'Choose a templating engine: ',
     options: [
-      { label: 'Handlebars Template', value: 'handlebars' },
-      { label: 'Nunjucks Template', value: 'nunjucks' },
-      { label: 'EJS Template', value: 'ejs' },
+      { label: 'Handlebars', value: 'handlebars' },
+      { label: 'Nunjucks', value: 'nunjucks' },
+      { label: 'EJS', value: 'ejs' },
     ],
   });
 
