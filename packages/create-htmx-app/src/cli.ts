@@ -2,90 +2,80 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import degit from 'degit';
-import prompts from 'prompts';
+import * as p from '@clack/prompts';
+import { isCancel } from '@clack/prompts';
+import { downloadTemplate } from 'giget';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-interface Template {
-  title: string;
-  value: string;
-}
-
 async function main() {
-  const { projectName } = await prompts({
-    type: 'text',
-    name: 'projectName',
+  p.intro('Create HTMX App');
+
+  const projectName = await p.text({
     message: 'Project name:',
-    initial: 'my-htmx-app',
-    validate: (value: string) => {
+    placeholder: 'my-htmx-app',
+    validate: (value) => {
       if (!value) return 'Project name is required';
       if (!/^[a-z0-9-]+$/.test(value)) {
         return 'Project name should only contain lowercase letters, numbers, and hyphens';
       }
-      return true;
+      return undefined;
     },
   });
 
-  if (!projectName) {
-    console.log('✖ Operation cancelled');
+  if (isCancel(projectName)) {
+    p.cancel('Operation cancelled');
     process.exit(0);
   }
 
-  const templates: Template[] = [
-    { title: 'Handlebars Template', value: 'handlebars' },
-    { title: 'Nunjucks Template', value: 'nunjucks' },
-    { title: 'EJS Template', value: 'ejs' },
-  ];
-
-  const { template } = await prompts({
-    type: 'select',
-    name: 'template',
+  const template = await p.select({
     message: 'Choose a template: (Handlebars and EJS coming soon)',
-    choices: templates,
+    options: [
+      { label: 'Handlebars Template', value: 'handlebars' },
+      { label: 'Nunjucks Template', value: 'nunjucks' },
+      { label: 'EJS Template', value: 'ejs' },
+    ],
   });
 
-  if (!template) {
-    console.log('✖ Operation cancelled');
+  if (isCancel(template)) {
+    p.cancel('Operation cancelled');
     process.exit(0);
   }
 
   const dest = path.resolve(process.cwd(), projectName);
 
   if (fs.existsSync(dest)) {
-    const { overwrite } = await prompts({
-      type: 'confirm',
-      name: 'overwrite',
+    const overwrite = await p.confirm({
       message: `Directory ${projectName} already exists. Overwrite?`,
-      initial: false,
+      initialValue: false,
     });
 
-    if (!overwrite) {
-      console.log('✖ Operation cancelled');
+    if (isCancel(overwrite) || !overwrite) {
+      p.cancel('Operation cancelled');
       process.exit(0);
     }
 
     fs.rmSync(dest, { recursive: true, force: true });
   }
 
-  console.log(`\n📦 Creating project in ${dest}...`);
+  const s = p.spinner();
+  s.start(`Creating project in ${dest}`);
 
   try {
     const repo = 'anthonny/workerify';
     const basePath = path.resolve(__dirname, '..', 'templates', '_base');
     if (fs.existsSync(basePath)) {
-      // Use fs.cp to copy local templates instead of degit
+      // Use fs.cp to copy local templates
       fs.cpSync(basePath, dest, { recursive: true });
     } else {
-      const emitter = degit(
-        `${repo}/packages/create-htmx-app/templates/_base#main`,
+      await downloadTemplate(
+        `github:${repo}/packages/create-htmx-app/templates/_base#main`,
         {
-          cache: false,
+          dir: dest,
           force: true,
         },
       );
-      await emitter.clone(dest);
     }
 
     const templatePath = path.resolve(__dirname, '..', 'templates', template);
@@ -94,7 +84,7 @@ async function main() {
     fs.mkdirSync(tempPath);
 
     if (fs.existsSync(templatePath)) {
-      // Use fs.cp to copy local templates instead of degit
+      // Use fs.cp to copy local templates
       fs.cpSync(templatePath, tempPath, { recursive: true });
 
       // Remove node_modules if it exists in the copied template
@@ -103,14 +93,13 @@ async function main() {
         fs.rmSync(nodeModulesPath, { recursive: true, force: true });
       }
     } else {
-      const emitter = degit(
-        `${repo}/packages/create-htmx-app/templates/${template}#main`,
+      await downloadTemplate(
+        `github:${repo}/packages/create-htmx-app/templates/${template}#main`,
         {
-          cache: false,
+          dir: tempPath,
           force: true,
         },
       );
-      await emitter.clone(tempPath);
     }
 
     const srcPath = path.join(tempPath, 'src');
@@ -162,16 +151,17 @@ async function main() {
       fs.rmSync(tempPath, { recursive: true, force: true });
     }
 
-    console.log(`\n✨ Project created successfully!`);
-    console.log(`\n👉 Next steps:`);
-    console.log(`   cd ${projectName}`);
-    console.log(`   pnpm install`);
-    console.log(`   pnpm dev`);
-    console.log(
-      `\n📖 For more information, visit: https://github.com/anthonny/workerify`,
-    );
+    s.stop('Project created successfully!');
+
+    p.outro(`Next steps:
+   cd ${projectName}
+   pnpm install
+   pnpm dev
+
+📖 For more information, visit: https://github.com/anthonny/workerify`);
   } catch (error) {
-    console.error('\n✖ Failed to create project:', error);
+    s.stop('Failed to create project');
+    p.log.error(`Failed to create project: ${error}`);
     process.exit(1);
   }
 }
