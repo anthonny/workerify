@@ -7,13 +7,13 @@
 >
   <div class="flex-1 overflow-y-auto overflow-x-hidden">
       <!-- Todo items will be rendered here -->
-      {% for todo in filteredTodos %}
+      {% for todo in todos %}
         {% include "viewTodo.njk" %}
       {% endfor %}
   </div>
   <div id="footer">
       <!-- Footer will be rendered here -->
-      {% set activeCount = filteredTodos | length %}
+      {% set activeCount = todos | length %}
       {% include "viewFooter.njk" %}
   </div>
 </div>

@@ -72,21 +72,14 @@ async function main() {
   console.log(`\n📦 Creating project in ${dest}...`);
 
   try {
-    const templatePath = path.resolve(__dirname, '..', 'templates', template);
-
-    if (fs.existsSync(templatePath)) {
+    const repo = 'anthonny/workerify';
+    const basePath = path.resolve(__dirname, '..', 'templates', '_base');
+    if (fs.existsSync(basePath)) {
       // Use fs.cp to copy local templates instead of degit
-      fs.cpSync(templatePath, dest, { recursive: true });
-
-      // Remove node_modules if it exists in the copied template
-      const nodeModulesPath = path.join(dest, 'node_modules');
-      if (fs.existsSync(nodeModulesPath)) {
-        fs.rmSync(nodeModulesPath, { recursive: true, force: true });
-      }
+      fs.cpSync(basePath, dest, { recursive: true });
     } else {
-      const repo = 'anthonny/workerify';
       const emitter = degit(
-        `${repo}/packages/create-htmx-app/templates/${template}#main`,
+        `${repo}/packages/create-htmx-app/templates/_base#main`,
         {
           cache: false,
           force: true,
@@ -95,11 +88,78 @@ async function main() {
       await emitter.clone(dest);
     }
 
+    const templatePath = path.resolve(__dirname, '..', 'templates', template);
+    const tempPath = path.resolve(dest, '_template');
+
+    fs.mkdirSync(tempPath);
+
+    if (fs.existsSync(templatePath)) {
+      // Use fs.cp to copy local templates instead of degit
+      fs.cpSync(templatePath, tempPath, { recursive: true });
+
+      // Remove node_modules if it exists in the copied template
+      const nodeModulesPath = path.join(tempPath, 'node_modules');
+      if (fs.existsSync(nodeModulesPath)) {
+        fs.rmSync(nodeModulesPath, { recursive: true, force: true });
+      }
+    } else {
+      const emitter = degit(
+        `${repo}/packages/create-htmx-app/templates/${template}#main`,
+        {
+          cache: false,
+          force: true,
+        },
+      );
+      await emitter.clone(tempPath);
+    }
+
+    const srcPath = path.join(tempPath, 'src');
+    if (fs.existsSync(srcPath)) {
+      fs.cpSync(srcPath, path.join(dest, 'src'), { recursive: true });
+    }
+
+    const scriptsPath = path.join(tempPath, 'scripts');
+    if (fs.existsSync(scriptsPath)) {
+      fs.mkdirSync(path.join(dest, 'scripts'));
+      fs.cpSync(scriptsPath, path.join(dest, 'scripts'), {
+        recursive: true,
+      });
+    }
+
+    const nunjucksEs6Path = path.join(tempPath, 'nunjucks-es6');
+    if (fs.existsSync(nunjucksEs6Path)) {
+      fs.mkdirSync(path.join(dest, 'nunjucks-es6'));
+      fs.cpSync(nunjucksEs6Path, path.join(dest, 'nunjucks-es6'), {
+        recursive: true,
+      });
+    }
+
     const packageJsonPath = path.join(dest, 'package.json');
+    const packageJsonTemplatePath = path.join(tempPath, 'package.json');
     if (fs.existsSync(packageJsonPath)) {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       packageJson.name = projectName;
+
+      if (fs.existsSync(packageJsonTemplatePath)) {
+        const packageJsonTemplate = JSON.parse(
+          fs.readFileSync(packageJsonTemplatePath, 'utf-8'),
+        );
+        packageJson.scripts = {
+          ...packageJson.scripts,
+          ...packageJsonTemplate.scripts,
+        };
+        packageJson.dependencies = {
+          ...packageJson.dependencies,
+          ...packageJsonTemplate.dependencies,
+        };
+        packageJson.devDependencies = {
+          ...packageJson.devDependencies,
+          ...packageJsonTemplate.devDependencies,
+        };
+      }
+
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+      fs.rmSync(tempPath, { recursive: true, force: true });
     }
 
     console.log(`\n✨ Project created successfully!`);

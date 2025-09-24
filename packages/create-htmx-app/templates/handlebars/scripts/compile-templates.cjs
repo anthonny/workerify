@@ -9,15 +9,18 @@ const outputFile = path.join(templatesDir, 'index.ts');
 const templates = [];
 
 // Read and compile each template
-fs.readdirSync(templatesDir).forEach(file => {
+fs.readdirSync(templatesDir).forEach((file) => {
   if (file.endsWith('.hbs')) {
     const templateName = path.basename(file, '.hbs');
-    const templateContent = fs.readFileSync(path.join(templatesDir, file), 'utf-8');
+    const templateContent = fs.readFileSync(
+      path.join(templatesDir, file),
+      'utf-8',
+    );
     const precompiled = Handlebars.precompile(templateContent);
 
     templates.push({
       name: templateName,
-      template: precompiled
+      template: precompiled,
     });
   }
 });
@@ -25,18 +28,20 @@ fs.readdirSync(templatesDir).forEach(file => {
 // Generate the ES6 module
 let output = `// @ts-nocheck
 import Handlebars from 'handlebars/runtime';
-export const handlebarsPrecompiled: Record<string, any> = {};
+
+type HandlebarsTemplateDelegate = ReturnType<typeof Handlebars.template>
+export const handlebarsPrecompiled: Record<${templates.map((t) => `'${t.name}'`).join('|')}, HandlebarsTemplateDelegate> = {};
 `;
 
-templates.forEach(template => {
+templates.forEach((template) => {
   output += `handlebarsPrecompiled[${JSON.stringify(template.name)}] = Handlebars.template(${template.template});\n`;
 });
 
 // Add registerPartials function
 output += `
-export function registerPartials(Handlebars: any) {
+export function registerPartials(handlebars: typeof Handlebars) {
   Object.keys(handlebarsPrecompiled).forEach(name => {
-    Handlebars.registerPartial(name, handlebarsPrecompiled[name]);
+    handlebars.registerPartial(name, handlebarsPrecompiled[name]);
   });
 }
 `;

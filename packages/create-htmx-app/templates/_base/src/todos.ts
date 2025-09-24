@@ -1,17 +1,6 @@
 import type { Workerify } from '@workerify/lib';
-import { renderTemplate } from './templates';
-
-type Todo = {
-  id: string;
-  value: string;
-  status: 'checked' | 'unchecked';
-};
-
-type TodoPayload = {
-  todo: string;
-};
-
-type Filter = 'all' | 'unchecked' | 'checked';
+import renderer from './renderer';
+import type { Filter, Todo, TodoPayload } from './types';
 
 async function todosRouter(workerify: Workerify, _options?: any) {
   const todos: Todo[] = [
@@ -46,7 +35,7 @@ async function todosRouter(workerify: Workerify, _options?: any) {
       filteredTodos = todos.filter((t) => t.status === 'checked');
     }
 
-    return renderTemplate('viewTodos', { filteredTodos, filter });
+    return renderer.viewTodos({ todos: filteredTodos, filter });
   });
 
   workerify.post('/api/todos', (request, reply) => {
@@ -68,7 +57,7 @@ async function todosRouter(workerify: Workerify, _options?: any) {
     reply.headers = {
       'HX-Trigger': 'todos:refresh',
     };
-    return renderTemplate('viewTodo', { todo, filter: 'all' });
+    return renderer.viewTodo({ todo, filter: 'all' });
   });
 
   workerify.put('/api/todos/:todoId/toggle-status', (request, reply) => {
@@ -92,7 +81,7 @@ async function todosRouter(workerify: Workerify, _options?: any) {
       'HX-Trigger': 'todos:refresh',
     };
     // Return the updated todo HTML for HTMX to replace
-    return renderTemplate('viewTodo', { todo, filter });
+    return renderer.viewTodo({ todo, filter });
   });
 }
 

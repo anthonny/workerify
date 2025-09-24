@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"npm run watch:templates\"",
+    "dev:vite": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "postinstall": "npm run prebuild"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@workerify/vite-plugin": "latest",
+    "chokidar-cli": "^3.0.0",
+    "concurrently": "^9.2.1",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.6"
+  },
+  "dependencies": {
+    "@workerify/lib": "latest",
+    "htmx.org": "^2.0.7"
+  }
+}

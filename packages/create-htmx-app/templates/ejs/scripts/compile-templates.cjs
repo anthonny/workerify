@@ -9,7 +9,7 @@ const outputFile = path.join(templatesDir, 'index.ts');
 const templates = {};
 
 // Read and compile each template
-fs.readdirSync(templatesDir).forEach(file => {
+fs.readdirSync(templatesDir).forEach((file) => {
   if (file.endsWith('.ejs')) {
     const templateName = path.basename(file, '.ejs');
     const templatePath = path.join(templatesDir, file);
@@ -21,30 +21,33 @@ fs.readdirSync(templatesDir).forEach(file => {
       client: true,
       filename: templatePath,
       compileDebug: false,
-      strict: true,  // This prevents 'with' statements
-      _with: false,  // Explicitly disable with statements
-      localsName: 'locals'  // Name of the locals object
+      strict: true, // This prevents 'with' statements
+      _with: false, // Explicitly disable with statements
+      localsName: 'locals', // Name of the locals object
     });
 
     templates[templateName] = compiledFunction.toString();
   }
 });
 
+const pipedTemplateNames = Object.keys(templates)
+  .map((t) => `'${t}'`)
+  .join('|');
 // Generate the ES6 module
 let output = `// @ts-nocheck
 import ejs from 'ejs';
 
-export const ejsTemplates: Record<string, any> = {};
+export const ejsTemplates: Record<${pipedTemplateNames}, any> = {};
 `;
 
 // Add each compiled template
-Object.keys(templates).forEach(name => {
+Object.keys(templates).forEach((name) => {
   output += `ejsTemplates['${name}'] = ${templates[name]};\n`;
 });
 
 // Add a render function that handles includes
 output += `
-export function renderTemplate(templateName: string, data: any): string {
+export function renderTemplate(templateName: ${pipedTemplateNames}, data: any): string {
   const template = ejsTemplates[templateName];
   if (!template) {
     throw new Error(\`Template \${templateName} not found\`);

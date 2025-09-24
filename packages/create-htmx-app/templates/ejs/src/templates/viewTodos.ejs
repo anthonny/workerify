@@ -7,13 +7,13 @@
 >
   <div class="flex-1 overflow-y-auto overflow-x-hidden">
       <!-- Todo items will be rendered here -->
-      <% locals.filteredTodos.forEach(function(todo) { %>
+      <% locals.todos.forEach(function(todo) { %>
         <%- locals.include('viewTodo', { todo: todo, filter: locals.filter }) %>
       <% }) %>
   </div>
   <div id="footer">
       <!-- Footer will be rendered here -->
-      <% const activeCount = locals.filteredTodos.length %>
+      <% const activeCount = locals.todos.length %>
       <%- locals.include('viewFooter', { activeCount: activeCount, filter: locals.filter }) %>
   </div>
 </div>
