@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import workerifyPlugin, { type WorkerifyPluginOptions } from '../index.js';
 import {
-  createMockViteServer,
+  callMiddleware,
+  captureMockMiddleware,
   createMockPluginContext,
   createMockRequest,
   createMockResponse,
-  captureMockMiddleware,
-  callMiddleware,
+  createMockViteServer,
   isValidJavaScript,
+  type MockPluginContext,
   type MockViteServer,
-  type MockPluginContext
 } from './test-utils.js';
 
 describe('Workerify Vite Plugin', () => {
@@ -37,7 +37,7 @@ describe('Workerify Vite Plugin', () => {
     it('should create plugin with custom options', () => {
       const options: WorkerifyPluginOptions = {
         scope: '/api/',
-        swFileName: 'custom-sw.js'
+        swFileName: 'custom-sw.js',
       };
 
       const plugin = workerifyPlugin(options);
@@ -148,7 +148,10 @@ describe('Workerify Vite Plugin', () => {
       const handled = await callMiddleware(middleware, req, res);
 
       expect(handled).toBe(true);
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/javascript');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/javascript',
+      );
       expect(res.end).toHaveBeenCalledWith(expect.any(String));
     });
 
@@ -201,7 +204,9 @@ describe('Workerify Vite Plugin', () => {
       plugin.configureServer?.(mockServer);
 
       expect(mockServer.middlewares.use).toHaveBeenCalledOnce();
-      expect(mockServer.middlewares.use).toHaveBeenCalledWith(expect.any(Function));
+      expect(mockServer.middlewares.use).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
     });
 
     it('should serve service worker at correct URL', async () => {
@@ -215,7 +220,10 @@ describe('Workerify Vite Plugin', () => {
       const handled = await callMiddleware(middleware, req, res);
 
       expect(handled).toBe(true);
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/javascript');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/javascript',
+      );
       expect(res.end).toHaveBeenCalledWith(expect.any(String));
     });
 
@@ -245,7 +253,10 @@ describe('Workerify Vite Plugin', () => {
       const handled = await callMiddleware(middleware, req, res);
 
       expect(handled).toBe(true);
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/javascript');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/javascript',
+      );
       expect(res.end).toHaveBeenCalledWith(expect.any(String));
     });
 
@@ -276,7 +287,7 @@ describe('Workerify Vite Plugin', () => {
       expect(mockContext.emitFile).toHaveBeenCalledWith({
         type: 'asset',
         fileName: 'build-sw.js',
-        source: expect.any(String)
+        source: expect.any(String),
       });
     });
 
@@ -288,7 +299,7 @@ describe('Workerify Vite Plugin', () => {
       expect(mockContext.emitFile).toHaveBeenCalledWith({
         type: 'asset',
         fileName: 'workerify-sw.js',
-        source: expect.any(String)
+        source: expect.any(String),
       });
     });
 
@@ -328,7 +339,7 @@ describe('Workerify Vite Plugin', () => {
     it('should load virtual workerify-register module', () => {
       const plugin = workerifyPlugin({
         scope: '/api/',
-        swFileName: 'custom.js'
+        swFileName: 'custom.js',
       });
 
       const moduleCode = plugin.load?.('\0virtual:workerify-register');
@@ -393,7 +404,7 @@ describe('Workerify Vite Plugin', () => {
       // This is a compile-time test - if the types are exported, TypeScript won't complain
       const options: WorkerifyPluginOptions = {
         scope: '/test/',
-        swFileName: 'test.js'
+        swFileName: 'test.js',
       };
 
       expect(options.scope).toBe('/test/');

@@ -21,5 +21,11 @@
     "lib": ["ES2022", "DOM", "WebWorker"]
   },
   "include": ["src/**/*", "*.d.ts"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts", "vitest.config.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "vitest.config.ts"
+  ]
 }

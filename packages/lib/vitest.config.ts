@@ -23,8 +23,8 @@ export default defineConfig({
         '**/*.config.*',
         'coverage/',
         'src/**/*.test.ts',
-        'src/**/*.spec.ts'
-      ]
+        'src/**/*.spec.ts',
+      ],
     },
 
     // Global test configuration
@@ -41,12 +41,12 @@ export default defineConfig({
 
     // TypeScript support
     typecheck: {
-      tsconfig: './tsconfig.json'
-    }
+      tsconfig: './tsconfig.json',
+    },
   },
 
   // ESM support
   esbuild: {
-    target: 'es2022'
-  }
+    target: 'es2022',
+  },
 });

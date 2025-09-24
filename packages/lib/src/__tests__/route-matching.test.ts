@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Workerify } from '../index.js';
 import { setupBroadcastChannelMock } from './test-utils.js';
 
@@ -61,17 +61,20 @@ describe('Route Matching Logic', () => {
       const result = matchRoute('/users/:id', '/users/123');
       expect(result).toEqual({
         match: true,
-        params: { id: '123' }
+        params: { id: '123' },
       });
     });
 
     it('should match multiple parameter routes', () => {
       const matchRoute = (workerify as any).matchRoute.bind(workerify);
 
-      const result = matchRoute('/users/:userId/posts/:postId', '/users/123/posts/456');
+      const result = matchRoute(
+        '/users/:userId/posts/:postId',
+        '/users/123/posts/456',
+      );
       expect(result).toEqual({
         match: true,
-        params: { userId: '123', postId: '456' }
+        params: { userId: '123', postId: '456' },
       });
     });
 
@@ -81,7 +84,7 @@ describe('Route Matching Logic', () => {
       const result = matchRoute('/users/:id', '/users/abc-123_def');
       expect(result).toEqual({
         match: true,
-        params: { id: 'abc-123_def' }
+        params: { id: 'abc-123_def' },
       });
     });
 
@@ -102,10 +105,13 @@ describe('Route Matching Logic', () => {
     it('should handle mixed static and parameter segments', () => {
       const matchRoute = (workerify as any).matchRoute.bind(workerify);
 
-      const result = matchRoute('/api/v1/users/:id/profile', '/api/v1/users/123/profile');
+      const result = matchRoute(
+        '/api/v1/users/:id/profile',
+        '/api/v1/users/123/profile',
+      );
       expect(result).toEqual({
         match: true,
-        params: { id: '123' }
+        params: { id: '123' },
       });
     });
 
@@ -115,7 +121,7 @@ describe('Route Matching Logic', () => {
       const result = matchRoute('/:org/repos', '/github/repos');
       expect(result).toEqual({
         match: true,
-        params: { org: 'github' }
+        params: { org: 'github' },
       });
     });
 
@@ -213,7 +219,10 @@ describe('Route Matching Logic', () => {
 
       workerify.get('/users', () => 'users');
 
-      const result = findRoute('GET', 'http://localhost:3000/users?page=1&limit=10');
+      const result = findRoute(
+        'GET',
+        'http://localhost:3000/users?page=1&limit=10',
+      );
       expect(result.route).toBeTruthy();
       expect(result.route.path).toBe('/users');
     });
@@ -276,7 +285,7 @@ describe('Route Matching Logic', () => {
       const result = matchRoute('/üsers/:ïd', '/üsers/123');
       expect(result).toEqual({
         match: true,
-        params: { ïd: '123' }
+        params: { ïd: '123' },
       });
     });
   });

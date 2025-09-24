@@ -1,4 +1,11 @@
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
+export type HttpMethod =
+  | 'GET'
+  | 'POST'
+  | 'PUT'
+  | 'DELETE'
+  | 'PATCH'
+  | 'HEAD'
+  | 'OPTIONS';
 
 export interface WorkerifyRequest {
   url: string;
@@ -18,7 +25,7 @@ export interface WorkerifyReply {
 
 export type RouteHandler = (
   request: WorkerifyRequest,
-  reply: WorkerifyReply
+  reply: WorkerifyReply,
 ) => Promise<any> | any;
 
 export interface Route {
@@ -53,6 +60,5 @@ export interface BroadcastMessage {
 
 export type WorkerifyPlugin = (
   instance: any,
-  options?: any
+  options?: any,
 ) => Promise<void> | void;
-

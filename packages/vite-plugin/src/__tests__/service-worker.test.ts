@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { SW_TEMPLATE } from '../generated/service-worker-template.js';
 import { isValidJavaScript } from './test-utils.js';
 

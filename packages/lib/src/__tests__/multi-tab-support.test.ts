@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
 import type { BroadcastMessage } from '../types.js';
 
@@ -7,7 +7,8 @@ global.fetch = vi.fn();
 
 // Mock BroadcastChannel
 class MockBroadcastChannel {
-  private listeners: Map<string, Array<(event: MessageEvent) => void>> = new Map();
+  private listeners: Map<string, Array<(event: MessageEvent) => void>> =
+    new Map();
   public name: string;
   public postMessage = vi.fn();
   public close = vi.fn();
@@ -42,11 +43,11 @@ class MockBroadcastChannel {
   // Helper to simulate receiving a message
   simulateMessage(data: any) {
     const event = new MessageEvent('message', { data });
-    this.listeners.get('message')?.forEach(listener => listener(event));
+    this.listeners.get('message')?.forEach((listener) => listener(event));
   }
 }
 
-// @ts-ignore
+// @ts-expect-error
 global.BroadcastChannel = MockBroadcastChannel;
 
 describe('Multi-tab Support', () => {
@@ -99,7 +100,7 @@ describe('Multi-tab Support', () => {
     it('should return a promise', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       const result = workerify.listen();
@@ -109,7 +110,7 @@ describe('Multi-tab Support', () => {
     it('should register with service worker via fetch', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       // Mock location for proper URL
@@ -120,7 +121,7 @@ describe('Multi-tab Support', () => {
         const channel = (workerify as any).channel as MockBroadcastChannel;
         channel.simulateMessage({
           type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId
+          consumerId: (workerify as any).consumerId,
         });
       }, 10);
 
@@ -138,24 +139,26 @@ describe('Multi-tab Support', () => {
     it('should handle registration failure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
-        status: 500
+        status: 500,
       });
 
-      await expect(workerify.listen()).rejects.toThrow('Registration failed: 500');
+      await expect(workerify.listen()).rejects.toThrow(
+        'Registration failed: 500',
+      );
     });
 
     it('should store clientId after successful registration', async () => {
       const testClientId = 'test-client-id-123';
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: testClientId })
+        json: () => Promise.resolve({ clientId: testClientId }),
       });
 
       setTimeout(() => {
         const channel = (workerify as any).channel as MockBroadcastChannel;
         channel.simulateMessage({
           type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId
+          consumerId: (workerify as any).consumerId,
         });
       }, 10);
 
@@ -166,7 +169,7 @@ describe('Multi-tab Support', () => {
     it('should send routes update after registration', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       workerify.get('/test', () => 'test response');
@@ -177,7 +180,7 @@ describe('Multi-tab Support', () => {
       setTimeout(() => {
         channel.simulateMessage({
           type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId
+          consumerId: (workerify as any).consumerId,
         });
       }, 10);
 
@@ -191,10 +194,10 @@ describe('Multi-tab Support', () => {
           routes: expect.arrayContaining([
             expect.objectContaining({
               path: '/test',
-              method: 'GET'
-            })
-          ])
-        })
+              method: 'GET',
+            }),
+          ]),
+        }),
       );
     });
 
@@ -203,7 +206,7 @@ describe('Multi-tab Support', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       const listenPromise = workerify.listen();
@@ -232,8 +235,8 @@ describe('Multi-tab Support', () => {
           url: 'http://localhost:3000/test',
           method: 'GET',
           headers: {},
-          body: null
-        }
+          body: null,
+        },
       });
 
       // Message for different consumer
@@ -245,12 +248,15 @@ describe('Multi-tab Support', () => {
           url: 'http://localhost:3000/test',
           method: 'GET',
           headers: {},
-          body: null
-        }
+          body: null,
+        },
       });
 
       expect(handleRequestSpy).toHaveBeenCalledTimes(1);
-      expect(handleRequestSpy).toHaveBeenCalledWith('msg-1', expect.any(Object));
+      expect(handleRequestSpy).toHaveBeenCalledWith(
+        'msg-1',
+        expect.any(Object),
+      );
     });
   });
 
@@ -271,7 +277,7 @@ describe('Multi-tab Support', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       workerify.get('/test1', () => 'test1');
@@ -282,7 +288,7 @@ describe('Multi-tab Support', () => {
       setTimeout(() => {
         channel.simulateMessage({
           type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId
+          consumerId: (workerify as any).consumerId,
         });
       }, 10);
 
@@ -295,9 +301,9 @@ describe('Multi-tab Support', () => {
           consumerId: (workerify as any).consumerId,
           routes: expect.arrayContaining([
             expect.objectContaining({ path: '/test1', method: 'GET' }),
-            expect.objectContaining({ path: '/test2', method: 'POST' })
-          ])
-        })
+            expect.objectContaining({ path: '/test2', method: 'POST' }),
+          ]),
+        }),
       );
     }, 15000);
   });
@@ -313,20 +319,22 @@ describe('Multi-tab Support', () => {
       instance1.get('/api/v1', () => 'v1');
       instance2.get('/api/v2', () => 'v2');
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ clientId: 'client-1' })
-      }).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ clientId: 'client-2' })
-      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ clientId: 'client-1' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ clientId: 'client-2' }),
+        });
 
       // Simulate acknowledgments
       setTimeout(() => {
         const channel1 = (instance1 as any).channel as MockBroadcastChannel;
         channel1.simulateMessage({
           type: 'workerify:routes:update:response',
-          consumerId: consumerId1
+          consumerId: consumerId1,
         });
       }, 10);
 
@@ -334,14 +342,11 @@ describe('Multi-tab Support', () => {
         const channel2 = (instance2 as any).channel as MockBroadcastChannel;
         channel2.simulateMessage({
           type: 'workerify:routes:update:response',
-          consumerId: consumerId2
+          consumerId: consumerId2,
         });
       }, 20);
 
-      await Promise.all([
-        instance1.listen(),
-        instance2.listen()
-      ]);
+      await Promise.all([instance1.listen(), instance2.listen()]);
 
       expect((instance1 as any).clientId).toBe('client-1');
       expect((instance2 as any).clientId).toBe('client-2');
@@ -387,8 +392,8 @@ describe('Multi-tab Support', () => {
         expect.objectContaining({
           type: 'workerify:routes:update',
           consumerId: (workerify as any).consumerId,
-          routes: expect.any(Array)
-        })
+          routes: expect.any(Array),
+        }),
       );
     });
   });

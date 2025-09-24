@@ -25,7 +25,10 @@ export class Workerify {
     this.channel.onmessage = this.handleMessage.bind(this);
 
     if (this.options.logger) {
-      console.log('[Workerify] Instance created with consumerId:', this.consumerId);
+      console.log(
+        '[Workerify] Instance created with consumerId:',
+        this.consumerId,
+      );
     }
   }
 
@@ -33,7 +36,12 @@ export class Workerify {
     const message = event.data;
 
     // Only handle messages targeted at this consumer
-    if (message.type === 'workerify:handle' && message.id && message.request && message.consumerId === this.consumerId) {
+    if (
+      message.type === 'workerify:handle' &&
+      message.id &&
+      message.request &&
+      message.consumerId === this.consumerId
+    ) {
       this.handleRequest(message.id, message.request);
     }
   }
@@ -248,12 +256,15 @@ export class Workerify {
   }
 
   // Helper to detect and process wildcard patterns
-  private processPath(path: string): { path: string; match: 'exact' | 'prefix' } {
+  private processPath(path: string): {
+    path: string;
+    match: 'exact' | 'prefix';
+  } {
     if (path.endsWith('/*')) {
       // Remove /* and use prefix matching
       return {
         path: path.slice(0, -1), // Remove the * but keep the /
-        match: 'prefix'
+        match: 'prefix',
       };
     }
     return { path, match: 'exact' };
@@ -320,7 +331,7 @@ export class Workerify {
       config.method,
       config.path,
       config.handler,
-      config.match || 'exact'
+      config.match || 'exact',
     );
     return this;
   }
@@ -352,7 +363,10 @@ export class Workerify {
       this.clientId = result.clientId;
 
       if (this.options.logger) {
-        console.log('[Workerify] Registered with service worker, clientId:', this.clientId);
+        console.log(
+          '[Workerify] Registered with service worker, clientId:',
+          this.clientId,
+        );
       }
 
       // Now update routes and wait for acknowledgment
@@ -381,14 +395,19 @@ export class Workerify {
         setTimeout(() => {
           this.channel.removeEventListener('message', handleRoutesAck);
           if (this.options.logger) {
-            console.warn('[Workerify] Routes registration timeout - continuing anyway');
+            console.warn(
+              '[Workerify] Routes registration timeout - continuing anyway',
+            );
           }
           resolve();
         }, 5000);
       });
     } catch (error) {
       if (this.options.logger) {
-        console.error('[Workerify] Failed to register with service worker:', error);
+        console.error(
+          '[Workerify] Failed to register with service worker:',
+          error,
+        );
       }
       throw error;
     }

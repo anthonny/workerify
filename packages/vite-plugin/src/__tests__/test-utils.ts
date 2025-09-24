@@ -28,15 +28,15 @@ export interface MockResponse {
 export function createMockViteServer(): MockViteServer {
   return {
     middlewares: {
-      use: vi.fn()
-    }
+      use: vi.fn(),
+    },
   };
 }
 
 // Create a mock plugin context
 export function createMockPluginContext(): MockPluginContext {
   return {
-    emitFile: vi.fn()
+    emitFile: vi.fn(),
   };
 }
 
@@ -45,7 +45,7 @@ export function createMockRequest(url: string, method = 'GET'): MockRequest {
   return {
     url,
     method,
-    headers: {}
+    headers: {},
   };
 }
 
@@ -55,7 +55,7 @@ export function createMockResponse(): MockResponse {
     setHeader: vi.fn(),
     end: vi.fn(),
     writeHead: vi.fn(),
-    write: vi.fn()
+    write: vi.fn(),
   };
 }
 
@@ -65,14 +65,18 @@ export function captureMockMiddleware(mockServer: MockViteServer) {
   if (!middlewareCall || !middlewareCall[0]) {
     throw new Error('No middleware was registered');
   }
-  return middlewareCall[0] as (req: MockRequest, res: MockResponse, next: () => void) => void;
+  return middlewareCall[0] as (
+    req: MockRequest,
+    res: MockResponse,
+    next: () => void,
+  ) => void;
 }
 
 // Helper to simulate calling the middleware
 export function callMiddleware(
   middleware: (req: MockRequest, res: MockResponse, next: () => void) => void,
   req: MockRequest,
-  res: MockResponse
+  res: MockResponse,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     let nextCalled = false;
@@ -110,8 +114,14 @@ export function isValidJavaScript(code: string): boolean {
 }
 
 // Helper to extract values from template strings
-export function extractTemplateValue(template: string, placeholder: string): string | null {
-  const regex = new RegExp(`${placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+export function extractTemplateValue(
+  template: string,
+  placeholder: string,
+): string | null {
+  const regex = new RegExp(
+    `${placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+    'g',
+  );
   const match = template.match(regex);
   return match ? match[0] : null;
 }
@@ -135,6 +145,6 @@ export function mockFileSystem() {
     },
     getFiles: () => {
       return Array.from(files.keys());
-    }
+    },
   };
 }

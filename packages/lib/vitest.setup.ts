@@ -6,7 +6,8 @@ global.location = { origin: 'http://localhost:3000' } as any;
 
 // Mock BroadcastChannel
 class MockBroadcastChannel {
-  private listeners: Map<string, Array<(event: MessageEvent) => void>> = new Map();
+  private listeners: Map<string, Array<(event: MessageEvent) => void>> =
+    new Map();
   public name: string;
   public postMessage = vi.fn();
   public close = vi.fn();
@@ -39,7 +40,7 @@ class MockBroadcastChannel {
   }
 }
 
-// @ts-ignore
+// @ts-expect-error
 global.BroadcastChannel = MockBroadcastChannel;
 
 // Default mock for fetch to resolve properly
@@ -47,7 +48,7 @@ beforeEach(() => {
   const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
   mockFetch.mockResolvedValue({
     ok: true,
-    json: () => Promise.resolve({ clientId: 'test-client-id' })
+    json: () => Promise.resolve({ clientId: 'test-client-id' }),
   });
 
   // Auto-acknowledge route updates to prevent timeouts
@@ -57,7 +58,7 @@ beforeEach(() => {
       if (channel && channel.simulateMessage) {
         channel.simulateMessage({
           type: 'workerify:routes:update:response',
-          consumerId: 'test-consumer-id'
+          consumerId: 'test-consumer-id',
         });
       }
     });

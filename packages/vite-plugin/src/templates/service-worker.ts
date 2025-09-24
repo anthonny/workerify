@@ -44,26 +44,33 @@ CHANNEL.onmessage = (ev) => {
 
   if (msg?.type === 'workerify:clients:list') {
     console.log('[Workerify SW] Listing all clients...');
-    self.clients.matchAll({ includeUncontrolled: true }).then((clients: readonly Client[]) => {
-      console.log('[Workerify SW] Total clients found:', clients.length);
-      clients.forEach((client: Client, i: number) => {
-        console.log(`[Workerify SW] Client ${i + 1}:`, {
-          id: client.id,
-          url: client.url,
-          type: client.type,
-          frameType: client.frameType
+    self.clients
+      .matchAll({ includeUncontrolled: true })
+      .then((clients: readonly Client[]) => {
+        console.log('[Workerify SW] Total clients found:', clients.length);
+        clients.forEach((client: Client, i: number) => {
+          console.log(`[Workerify SW] Client ${i + 1}:`, {
+            id: client.id,
+            url: client.url,
+            type: client.type,
+            frameType: client.frameType,
+          });
         });
-      });
 
-      console.log('[Workerify SW] Client-Consumer mappings:');
-      console.table(Array.from(clientConsumerMap.entries()).map(([clientId, consumerId]) => ({
-        clientId,
-        consumerId,
-        hasActiveClient: clients.some(c => c.id === clientId)
-      })));
-    }).catch((error: any) => {
-      console.error('[Workerify SW] Error listing clients:', error);
-    });
+        console.log('[Workerify SW] Client-Consumer mappings:');
+        console.table(
+          Array.from(clientConsumerMap.entries()).map(
+            ([clientId, consumerId]) => ({
+              clientId,
+              consumerId,
+              hasActiveClient: clients.some((c) => c.id === clientId),
+            }),
+          ),
+        );
+      })
+      .catch((error: any) => {
+        console.error('[Workerify SW] Error listing clients:', error);
+      });
   }
 };
 

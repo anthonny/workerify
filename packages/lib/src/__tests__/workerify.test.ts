@@ -1,6 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import { setupBroadcastChannelMock, createMockRequest, waitForAsync } from './test-utils.js';
+import {
+  createMockRequest,
+  setupBroadcastChannelMock,
+  waitForAsync,
+} from './test-utils.js';
 
 // Setup mocks
 setupBroadcastChannelMock();
@@ -90,12 +94,14 @@ describe('Workerify', () => {
 
     it('should register route with custom configuration', () => {
       const handler = vi.fn();
-      expect(() => workerify.route({
-        method: 'GET',
-        path: '/test',
-        handler,
-        match: 'prefix'
-      })).not.toThrow();
+      expect(() =>
+        workerify.route({
+          method: 'GET',
+          path: '/test',
+          handler,
+          match: 'prefix',
+        }),
+      ).not.toThrow();
     });
   });
 
@@ -123,7 +129,7 @@ describe('Workerify', () => {
       // Mock fetch for registration
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       // Mock routes acknowledgment
@@ -134,8 +140,8 @@ describe('Workerify', () => {
             listener({
               data: {
                 type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId
-              }
+                consumerId: (workerify as any).consumerId,
+              },
             });
           });
         }
@@ -161,7 +167,7 @@ describe('Workerify', () => {
       // Mock fetch for registration
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       setTimeout(() => {
@@ -171,8 +177,8 @@ describe('Workerify', () => {
             listener({
               data: {
                 type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId
-              }
+                consumerId: (workerify as any).consumerId,
+              },
             });
           });
         }
@@ -188,7 +194,7 @@ describe('Workerify', () => {
       // Mock fetch for registration
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       setTimeout(() => {
@@ -198,8 +204,8 @@ describe('Workerify', () => {
             listener({
               data: {
                 type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId
-              }
+                consumerId: (workerify as any).consumerId,
+              },
             });
           });
         }
@@ -216,7 +222,7 @@ describe('Workerify', () => {
       // Mock fetch for registration
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       setTimeout(() => {
@@ -226,8 +232,8 @@ describe('Workerify', () => {
             listener({
               data: {
                 type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId
-              }
+                consumerId: (workerify as any).consumerId,
+              },
             });
           });
         }
@@ -276,7 +282,7 @@ describe('Workerify', () => {
       // Mock fetch for registration
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ clientId: 'test-client-id' })
+        json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
       setTimeout(() => {
@@ -286,8 +292,8 @@ describe('Workerify', () => {
             listener({
               data: {
                 type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId
-              }
+                consumerId: (workerify as any).consumerId,
+              },
             });
           });
         }
@@ -302,9 +308,9 @@ describe('Workerify', () => {
           consumerId: expect.any(String),
           routes: expect.arrayContaining([
             expect.objectContaining({ path: '/test1', method: 'GET' }),
-            expect.objectContaining({ path: '/test2', method: 'POST' })
-          ])
-        })
+            expect.objectContaining({ path: '/test2', method: 'POST' }),
+          ]),
+        }),
       );
     });
   });

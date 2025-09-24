@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { getRegisterModule } from '../generated/register-template.js';
 import { isValidJavaScript } from './test-utils.js';
 
@@ -135,7 +135,11 @@ describe('Virtual Module - Workerify Register', () => {
     });
 
     it('should handle complex SW URLs', () => {
-      const module = getRegisterModule('/assets/service-workers/main.js', '/app/', 'main.js');
+      const module = getRegisterModule(
+        '/assets/service-workers/main.js',
+        '/app/',
+        'main.js',
+      );
 
       expect(module).toContain('/assets/service-workers/main.js');
       expect(module).toContain('/app/');
@@ -246,7 +250,7 @@ describe('Virtual Module - Workerify Register', () => {
     });
 
     it('should properly escape string parameters', () => {
-      const withQuotes = "/sw'with\"quotes.js";
+      const withQuotes = '/sw\'with"quotes.js';
       const module = getRegisterModule(withQuotes, '/', 'sw.js');
 
       expect(isValidJavaScript(module)).toBe(true);

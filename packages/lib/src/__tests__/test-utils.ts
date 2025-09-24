@@ -1,4 +1,4 @@
-import type { WorkerifyRequest, WorkerifyReply } from '../types.js';
+import type { WorkerifyReply, WorkerifyRequest } from '../types.js';
 
 // Mock BroadcastChannel for testing
 export class MockBroadcastChannel {
@@ -12,7 +12,7 @@ export class MockBroadcastChannel {
   postMessage(data: any) {
     // Simulate async message delivery
     setTimeout(() => {
-      this.listeners.forEach(listener => {
+      this.listeners.forEach((listener) => {
         listener({ data });
       });
     }, 0);
@@ -49,17 +49,17 @@ export function createMockRequest(
   method: string = 'GET',
   url: string = 'http://localhost:3000/',
   headers: Record<string, string> = {},
-  body?: ArrayBuffer
+  body?: ArrayBuffer,
 ): WorkerifyRequest {
   return {
     url,
     method: method as any,
     headers: {
       'user-agent': 'test',
-      ...headers
+      ...headers,
     },
     body: body || null,
-    params: {}
+    params: {},
   };
 }
 
@@ -69,13 +69,13 @@ export function createMockReply(): WorkerifyReply {
     status: 200,
     statusText: 'OK',
     headers: {},
-    bodyType: 'json'
+    bodyType: 'json',
   };
 }
 
 // Setup global mocks for BroadcastChannel
 export function setupBroadcastChannelMock() {
-  // @ts-ignore
+  // @ts-expect-error
   global.BroadcastChannel = MockBroadcastChannel;
 }
 
@@ -86,7 +86,7 @@ export function cleanup() {
 
 // Wait for async operations to complete
 export function waitForAsync(ms: number = 10) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Convert string to ArrayBuffer for testing

@@ -1,13 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
-  HttpMethod,
-  WorkerifyRequest,
-  WorkerifyReply,
-  RouteHandler,
-  Route,
-  WorkerifyOptions,
   BroadcastMessage,
-  WorkerifyPlugin
+  HttpMethod,
+  Route,
+  RouteHandler,
+  WorkerifyOptions,
+  WorkerifyPlugin,
+  WorkerifyReply,
+  WorkerifyRequest,
 } from '../types.js';
 
 describe('Type Definitions', () => {
@@ -20,11 +20,11 @@ describe('Type Definitions', () => {
         'DELETE',
         'PATCH',
         'HEAD',
-        'OPTIONS'
+        'OPTIONS',
       ];
 
       // Type check - this will fail at compile time if types are wrong
-      methods.forEach(method => {
+      methods.forEach((method) => {
         expect(typeof method).toBe('string');
       });
     });
@@ -37,7 +37,7 @@ describe('Type Definitions', () => {
         method: 'GET',
         headers: { 'content-type': 'application/json' },
         body: null,
-        params: { id: '123' }
+        params: { id: '123' },
       };
 
       expect(request.url).toBe('http://localhost:3000/test');
@@ -52,7 +52,7 @@ describe('Type Definitions', () => {
         url: 'http://localhost:3000/test',
         method: 'GET',
         headers: {},
-        params: {}
+        params: {},
       };
 
       expect(requestWithoutBody.body).toBeUndefined();
@@ -65,7 +65,7 @@ describe('Type Definitions', () => {
         method: 'POST',
         headers: {},
         body: buffer,
-        params: {}
+        params: {},
       };
 
       expect(request.body).toBe(buffer);
@@ -79,7 +79,7 @@ describe('Type Definitions', () => {
         statusText: 'OK',
         headers: { 'content-type': 'application/json' },
         body: { message: 'success' },
-        bodyType: 'json'
+        bodyType: 'json',
       };
 
       expect(reply.status).toBe(200);
@@ -102,17 +102,17 @@ describe('Type Definitions', () => {
     it('should support different body types', () => {
       const jsonReply: WorkerifyReply = {
         body: { data: 'json' },
-        bodyType: 'json'
+        bodyType: 'json',
       };
 
       const textReply: WorkerifyReply = {
         body: 'text response',
-        bodyType: 'text'
+        bodyType: 'text',
       };
 
       const bufferReply: WorkerifyReply = {
         body: new ArrayBuffer(8),
-        bodyType: 'arrayBuffer'
+        bodyType: 'arrayBuffer',
       };
 
       expect(jsonReply.bodyType).toBe('json');
@@ -167,7 +167,7 @@ describe('Type Definitions', () => {
         method: 'GET',
         path: '/test',
         handler: () => 'test',
-        match: 'exact'
+        match: 'exact',
       };
 
       expect(route.method).toBe('GET');
@@ -180,7 +180,7 @@ describe('Type Definitions', () => {
       const route: Route = {
         path: '/all',
         handler: () => 'all methods',
-        match: 'exact'
+        match: 'exact',
       };
 
       expect(route.method).toBeUndefined();
@@ -190,7 +190,7 @@ describe('Type Definitions', () => {
       const route: Route = {
         method: 'GET',
         path: '/test',
-        handler: () => 'test'
+        handler: () => 'test',
       };
 
       expect(route.match).toBeUndefined();
@@ -201,7 +201,7 @@ describe('Type Definitions', () => {
         method: 'GET',
         path: '/api/',
         handler: () => 'api',
-        match: 'prefix'
+        match: 'prefix',
       };
 
       expect(route.match).toBe('prefix');
@@ -212,7 +212,7 @@ describe('Type Definitions', () => {
     it('should have correct structure', () => {
       const options: WorkerifyOptions = {
         logger: true,
-        scope: '/api'
+        scope: '/api',
       };
 
       expect(options.logger).toBe(true);
@@ -228,7 +228,7 @@ describe('Type Definitions', () => {
 
     it('should support logger only', () => {
       const options: WorkerifyOptions = {
-        logger: false
+        logger: false,
       };
 
       expect(options.logger).toBe(false);
@@ -237,7 +237,7 @@ describe('Type Definitions', () => {
 
     it('should support scope only', () => {
       const options: WorkerifyOptions = {
-        scope: '/custom'
+        scope: '/custom',
       };
 
       expect(options.logger).toBeUndefined();
@@ -251,8 +251,8 @@ describe('Type Definitions', () => {
         type: 'workerify:routes:update',
         routes: [
           { method: 'GET', path: '/test', match: 'exact' },
-          { path: '/all', match: 'prefix' }
-        ]
+          { path: '/all', match: 'prefix' },
+        ],
       };
 
       expect(message.type).toBe('workerify:routes:update');
@@ -267,8 +267,8 @@ describe('Type Definitions', () => {
           url: 'http://localhost:3000/test',
           method: 'GET',
           headers: {},
-          params: {}
-        }
+          params: {},
+        },
       };
 
       expect(message.type).toBe('workerify:handle');
@@ -284,7 +284,7 @@ describe('Type Definitions', () => {
         statusText: 'OK',
         headers: { 'content-type': 'application/json' },
         body: { data: 'response' },
-        bodyType: 'json'
+        bodyType: 'json',
       };
 
       expect(message.type).toBe('workerify:response');
@@ -295,7 +295,7 @@ describe('Type Definitions', () => {
 
     it('should support minimal message', () => {
       const message: BroadcastMessage = {
-        type: 'custom:message'
+        type: 'custom:message',
       };
 
       expect(message.type).toBe('custom:message');
@@ -366,7 +366,7 @@ describe('Type Definitions', () => {
         { method: 'PATCH', path: '/', handler: () => 'patch' },
         { method: 'HEAD', path: '/', handler: () => 'head' },
         { method: 'OPTIONS', path: '/', handler: () => 'options' },
-        { path: '/', handler: () => 'all' } // No method = ALL
+        { path: '/', handler: () => 'all' }, // No method = ALL
       ];
 
       expect(routes).toHaveLength(8);

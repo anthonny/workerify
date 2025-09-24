@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import { setupBroadcastChannelMock } from './test-utils.js';
 import type { WorkerifyPlugin } from '../types.js';
+import { setupBroadcastChannelMock } from './test-utils.js';
 
 // Setup mocks
 setupBroadcastChannelMock();
@@ -29,10 +29,12 @@ describe('Plugin System', () => {
     });
 
     it('should register asynchronous plugin', async () => {
-      const plugin: WorkerifyPlugin = vi.fn().mockImplementation(async (app) => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        app.get('/async-plugin', () => 'async response');
-      });
+      const plugin: WorkerifyPlugin = vi
+        .fn()
+        .mockImplementation(async (app) => {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          app.get('/async-plugin', () => 'async response');
+        });
 
       await workerify.register(plugin);
 
@@ -53,13 +55,19 @@ describe('Plugin System', () => {
         throw new Error('Plugin initialization failed');
       });
 
-      await expect(workerify.register(plugin)).rejects.toThrow('Plugin initialization failed');
+      await expect(workerify.register(plugin)).rejects.toThrow(
+        'Plugin initialization failed',
+      );
     });
 
     it('should handle async plugin errors', async () => {
-      const plugin: WorkerifyPlugin = vi.fn().mockRejectedValue(new Error('Async plugin error'));
+      const plugin: WorkerifyPlugin = vi
+        .fn()
+        .mockRejectedValue(new Error('Async plugin error'));
 
-      await expect(workerify.register(plugin)).rejects.toThrow('Async plugin error');
+      await expect(workerify.register(plugin)).rejects.toThrow(
+        'Async plugin error',
+      );
     });
   });
 
@@ -101,11 +109,13 @@ describe('Plugin System', () => {
     });
 
     it('should allow plugins to access workerify instance methods', async () => {
-      const plugin: WorkerifyPlugin = vi.fn().mockImplementation(async (app) => {
-        // Plugin can call any public method
-        app.updateRoutes();
-        await app.listen();
-      });
+      const plugin: WorkerifyPlugin = vi
+        .fn()
+        .mockImplementation(async (app) => {
+          // Plugin can call any public method
+          app.updateRoutes();
+          await app.listen();
+        });
 
       await workerify.register(plugin);
 
@@ -146,22 +156,24 @@ describe('Plugin System', () => {
         middleware?: boolean;
       }
 
-      const plugin: WorkerifyPlugin = vi.fn().mockImplementation((app, options: PluginOptions) => {
-        if (options?.routes) {
-          options.routes.forEach(route => {
-            const fullPath = options.prefix + route.path;
-            app.get(fullPath, route.handler);
-          });
-        }
-      });
+      const plugin: WorkerifyPlugin = vi
+        .fn()
+        .mockImplementation((app, options: PluginOptions) => {
+          if (options?.routes) {
+            options.routes.forEach((route) => {
+              const fullPath = options.prefix + route.path;
+              app.get(fullPath, route.handler);
+            });
+          }
+        });
 
       const options: PluginOptions = {
         prefix: '/api/v1',
         routes: [
           { path: '/users', handler: () => 'users' },
-          { path: '/posts', handler: () => 'posts' }
+          { path: '/posts', handler: () => 'posts' },
         ],
-        middleware: true
+        middleware: true,
       };
 
       await workerify.register(plugin, options);
@@ -175,10 +187,12 @@ describe('Plugin System', () => {
     });
 
     it('should handle plugin with no options', async () => {
-      const plugin: WorkerifyPlugin = vi.fn().mockImplementation((app, options) => {
-        expect(options).toBeUndefined();
-        app.get('/no-options', () => 'no options');
-      });
+      const plugin: WorkerifyPlugin = vi
+        .fn()
+        .mockImplementation((app, options) => {
+          expect(options).toBeUndefined();
+          app.get('/no-options', () => 'no options');
+        });
 
       await workerify.register(plugin);
 
@@ -206,7 +220,7 @@ describe('Plugin System', () => {
 
       const result = await workerify
         .register(plugin1)
-        .then(app => app.register(plugin2));
+        .then((app) => app.register(plugin2));
 
       expect(result).toBe(workerify);
 
@@ -223,7 +237,8 @@ describe('Plugin System', () => {
       }
 
       const corsPlugin: WorkerifyPlugin = (app, options: CorsOptions = {}) => {
-        const { origin = ['*'], methods = ['GET', 'POST', 'PUT', 'DELETE'] } = options;
+        const { origin = ['*'], methods = ['GET', 'POST', 'PUT', 'DELETE'] } =
+          options;
 
         // Add OPTIONS handler for preflight
         app.option('/*', (req, reply) => {
@@ -231,7 +246,7 @@ describe('Plugin System', () => {
             'Access-Control-Allow-Origin': origin.join(', '),
             'Access-Control-Allow-Methods': methods.join(', '),
             'Access-Control-Allow-Headers': 'Content-Type',
-            ...reply.headers
+            ...reply.headers,
           };
           return '';
         });
@@ -239,7 +254,7 @@ describe('Plugin System', () => {
 
       await workerify.register(corsPlugin, {
         origin: ['https://example.com'],
-        methods: ['GET', 'POST']
+        methods: ['GET', 'POST'],
       });
 
       const routes = (workerify as any).routes;
@@ -286,7 +301,7 @@ describe('Plugin System', () => {
         });
 
         // Add protected routes
-        protectedRoutes.forEach(route => {
+        protectedRoutes.forEach((route) => {
           app.get(route, (req, reply) => {
             const auth = req.headers.authorization;
             if (!auth || !auth.includes('Bearer')) {
@@ -300,7 +315,7 @@ describe('Plugin System', () => {
 
       await workerify.register(authPlugin, {
         secret: 'test-secret',
-        protected: ['/admin', '/profile']
+        protected: ['/admin', '/profile'],
       });
 
       const routes = (workerify as any).routes;

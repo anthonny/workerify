@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { promises as fs } from 'fs';
 import { exec } from 'child_process';
-import { promisify } from 'util';
+import { promises as fs } from 'fs';
 import path from 'path';
+import { promisify } from 'util';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const execAsync = promisify(exec);
 
@@ -59,7 +59,9 @@ describe('Template Compilation System', () => {
         const stats = await fs.stat(templatePath);
         expect(stats.isFile()).toBe(true);
       } catch (error) {
-        throw new Error(`service-worker.ts template not found at ${templatePath}`);
+        throw new Error(
+          `service-worker.ts template not found at ${templatePath}`,
+        );
       }
     });
 
@@ -103,7 +105,9 @@ describe('Template Compilation System', () => {
     it('should generate service-worker-template.ts', async () => {
       // Run the build script first
       try {
-        await execAsync('node scripts/build-templates.js', { cwd: projectRoot });
+        await execAsync('node scripts/build-templates.js', {
+          cwd: projectRoot,
+        });
       } catch (error) {
         throw new Error(`Failed to run build script: ${error}`);
       }
@@ -114,7 +118,9 @@ describe('Template Compilation System', () => {
         const stats = await fs.stat(outputPath);
         expect(stats.isFile()).toBe(true);
       } catch (error) {
-        throw new Error(`Generated service-worker-template.ts not found at ${outputPath}`);
+        throw new Error(
+          `Generated service-worker-template.ts not found at ${outputPath}`,
+        );
       }
     });
 
@@ -125,7 +131,9 @@ describe('Template Compilation System', () => {
         const stats = await fs.stat(outputPath);
         expect(stats.isFile()).toBe(true);
       } catch (error) {
-        throw new Error(`Generated register-template.ts not found at ${outputPath}`);
+        throw new Error(
+          `Generated register-template.ts not found at ${outputPath}`,
+        );
       }
     });
 
@@ -181,19 +189,24 @@ describe('Template Compilation System', () => {
 
     it('should compile TypeScript without errors', async () => {
       try {
-        const result = await execAsync('node scripts/build-templates.js', { cwd: projectRoot });
+        const result = await execAsync('node scripts/build-templates.js', {
+          cwd: projectRoot,
+        });
 
         // Should not contain TypeScript compilation errors
         expect(result.stderr).not.toContain('error TS');
         expect(result.stderr).not.toContain('Cannot find');
-        expect(result.stderr).not.toContain('Type \'');
+        expect(result.stderr).not.toContain("Type '");
       } catch (error) {
         throw new Error(`TypeScript compilation failed: ${error}`);
       }
     });
 
     it('should generate ES modules', async () => {
-      const swOutputPath = path.join(generatedDir, 'service-worker-template.ts');
+      const swOutputPath = path.join(
+        generatedDir,
+        'service-worker-template.ts',
+      );
       const regOutputPath = path.join(generatedDir, 'register-template.ts');
 
       const swContent = await fs.readFile(swOutputPath, 'utf-8');
@@ -262,10 +275,12 @@ describe('Template Compilation System', () => {
       await execAsync('npm run prebuild', { cwd: projectRoot });
 
       // Check that files were generated
-      const swExists = await fs.stat(path.join(generatedDir, 'service-worker-template.ts'))
+      const swExists = await fs
+        .stat(path.join(generatedDir, 'service-worker-template.ts'))
         .then(() => true)
         .catch(() => false);
-      const regExists = await fs.stat(path.join(generatedDir, 'register-template.ts'))
+      const regExists = await fs
+        .stat(path.join(generatedDir, 'register-template.ts'))
         .then(() => true)
         .catch(() => false);
 
@@ -276,15 +291,19 @@ describe('Template Compilation System', () => {
     it('should allow successful TypeScript build after prebuild', async () => {
       try {
         // This should not fail if templates are properly generated
-        const result = await execAsync('npm run typecheck', { cwd: projectRoot });
+        const result = await execAsync('npm run typecheck', {
+          cwd: projectRoot,
+        });
         // Should not contain TypeScript errors
         expect(result.stderr).not.toContain('error TS');
       } catch (error) {
         // If it fails, at least check that generated files exist
-        const swExists = await fs.stat(path.join(generatedDir, 'service-worker-template.ts'))
+        const swExists = await fs
+          .stat(path.join(generatedDir, 'service-worker-template.ts'))
           .then(() => true)
           .catch(() => false);
-        const regExists = await fs.stat(path.join(generatedDir, 'register-template.ts'))
+        const regExists = await fs
+          .stat(path.join(generatedDir, 'register-template.ts'))
           .then(() => true)
           .catch(() => false);
 
@@ -296,10 +315,12 @@ describe('Template Compilation System', () => {
 
   describe('File system organization', () => {
     it('should keep source templates separate from generated files', async () => {
-      const templatesExists = await fs.stat(templatesDir)
+      const templatesExists = await fs
+        .stat(templatesDir)
         .then(() => true)
         .catch(() => false);
-      const generatedExists = await fs.stat(generatedDir)
+      const generatedExists = await fs
+        .stat(generatedDir)
         .then(() => true)
         .catch(() => false);
 

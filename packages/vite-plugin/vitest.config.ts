@@ -25,8 +25,8 @@ export default defineConfig({
         'src/**/*.test.ts',
         'src/**/*.spec.ts',
         'src/generated/',
-        'scripts/'
-      ]
+        'scripts/',
+      ],
     },
 
     // Global test configuration
@@ -40,12 +40,12 @@ export default defineConfig({
 
     // TypeScript support
     typecheck: {
-      tsconfig: './tsconfig.json'
-    }
+      tsconfig: './tsconfig.json',
+    },
   },
 
   // ESM support
   esbuild: {
-    target: 'es2022'
-  }
+    target: 'es2022',
+  },
 });
