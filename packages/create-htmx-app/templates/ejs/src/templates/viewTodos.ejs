@@ -1,0 +1,19 @@
+<div
+    class="flex flex-1 flex-col overflow-hidden"
+    id="todos"
+    hx-get="/api/todos?filter=<%= locals.filter %>"
+    hx-trigger="sw-ready, todos:refresh from:body"
+    hx-swap="outerHTML"
+>
+  <div class="flex-1 overflow-y-auto overflow-x-hidden">
+      <!-- Todo items will be rendered here -->
+      <% locals.filteredTodos.forEach(function(todo) { %>
+        <%- locals.include('viewTodo', { todo: todo, filter: locals.filter }) %>
+      <% }) %>
+  </div>
+  <div id="footer">
+      <!-- Footer will be rendered here -->
+      <% const activeCount = locals.filteredTodos.length %>
+      <%- locals.include('viewFooter', { activeCount: activeCount, filter: locals.filter }) %>
+  </div>
+</div>

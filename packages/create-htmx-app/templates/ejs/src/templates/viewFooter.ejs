@@ -1,0 +1,10 @@
+<div class="flex justify-between items-center px-4 py-2 bg-gray-800 text-white">
+  <div><%= locals.activeCount %> <%= locals.activeCount === 1 ? 'item' : 'items' %> left</div>
+  <div>
+    <ul class="flex text-gray-600 gap-2">
+      <li class="cursor-pointer <%= locals.filter === 'all' ? 'text-white' : '' %>" hx-get="/api/todos?filter=all" hx-target="#todos" hx-swap="outerHTML">All</li>
+      <li class="cursor-pointer <%= locals.filter === 'unchecked' ? 'text-white' : '' %>" hx-get="/api/todos?filter=unchecked" hx-target="#todos" hx-swap="outerHTML">Active</li>
+      <li class="cursor-pointer <%= locals.filter === 'checked' ? 'text-white' : '' %>" hx-get="/api/todos?filter=checked" hx-target="#todos" hx-swap="outerHTML">Completed</li>
+    </ul>
+  </div>
+</div>

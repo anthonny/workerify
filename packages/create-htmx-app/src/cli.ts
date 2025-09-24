@@ -34,9 +34,9 @@ async function main() {
   }
 
   const templates: Template[] = [
-    // { title: 'EJS Template', value: 'ejs' },
     { title: 'Handlebars Template', value: 'handlebars' },
     { title: 'Nunjucks Template', value: 'nunjucks' },
+    { title: 'EJS Template', value: 'ejs' },
   ];
 
   const { template } = await prompts({
