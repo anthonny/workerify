@@ -1,5 +1,11 @@
 # @workerify/create-htmx-app
 
+## 0.3.0
+
+### Minor Changes
+
+- Add NanoJSX in the available templates
+
 ## 0.2.0
 
 ### Minor Changes
