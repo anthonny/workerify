@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "build": "vite build",
+    "postinstall": ""
+  },
+  "devDependencies": {},
+  "dependencies": {
+    "nano-jsx": "^0.1.0"
+  }
+}

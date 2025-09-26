@@ -35,6 +35,7 @@ async function main() {
       { label: 'Handlebars', value: 'handlebars' },
       { label: 'Nunjucks', value: 'nunjucks' },
       { label: 'EJS', value: 'ejs' },
+      { label: 'NanoJSX', value: 'nanojsx' },
     ],
   });
 
@@ -105,6 +106,25 @@ async function main() {
     const srcPath = path.join(tempPath, 'src');
     if (fs.existsSync(srcPath)) {
       fs.cpSync(srcPath, path.join(dest, 'src'), { recursive: true });
+    }
+
+
+    const tsconfigDestPath = path.join(dest, 'tsconfig.json');
+    const tsconfigTempPath = path.join(tempPath, 'tsconfig.json');
+    if (fs.existsSync(tsconfigTempPath)) {
+      const tsconfigTemplate = JSON.parse(fs.readFileSync(tsconfigTempPath, { encoding: 'utf-8' }));
+      const tsconfigDest = JSON.parse(fs.readFileSync(tsconfigDestPath, { encoding: 'utf-8' }));
+
+      fs.writeFileSync(path.join(dest, 'tsconfig.json'), JSON.stringify({
+        ...tsconfigDest,
+        ...{
+          ...tsconfigTemplate,
+          compilerOptions: {
+            ...tsconfigDest.compilerOptions,
+            ...tsconfigTemplate.compilerOptions
+          }
+        }
+      }, null, 2))
     }
 
     const scriptsPath = path.join(tempPath, 'scripts');
