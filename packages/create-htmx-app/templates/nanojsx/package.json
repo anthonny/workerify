@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "dev": "concurrently \"npm run dev:vite\"",
     "build": "vite build",
     "postinstall": ""
   },
