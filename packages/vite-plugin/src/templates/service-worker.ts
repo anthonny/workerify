@@ -14,6 +14,17 @@ const consumerRoutesMap = new Map<
 
 CHANNEL.onmessage = (ev) => {
   const msg = ev.data;
+  if (msg?.type === 'workerify:sw:check-readiness') {
+    console.log('[Workerify SW] Check readiness:');
+
+    if (self.registration?.active?.state === 'activated') {
+      // Send acknowledgment
+      CHANNEL.postMessage({
+        type: 'workerify:sw:check-readiness:response',
+        body: self.registration?.active?.state === 'activated',
+      });
+    }
+  }
   if (msg?.type === 'workerify:routes:update' && msg.consumerId) {
     console.log(
       '[Workerify SW] Updating routes for consumer:',
@@ -88,6 +99,15 @@ self.addEventListener('activate', (e: ExtendableEvent) => {
   e.waitUntil(
     self.clients.claim().then(() => {
       console.log('[Workerify SW] Now controlling all clients');
+      console.log(
+        '[Workerify SW] Notify SW is ready',
+        self.registration?.active?.state,
+      );
+      // Send acknowledgment
+      CHANNEL.postMessage({
+        type: 'workerify:sw:check-readiness:response',
+        body: self.registration?.active?.state === 'activated',
+      });
       // Clean up mappings for closed clients
       cleanupClosedClients();
     }),
@@ -184,6 +204,9 @@ const pending = new Map<string, { resolve: (value: any) => void }>();
 
 CHANNEL.addEventListener('message', (ev) => {
   const m = ev.data;
+  if (m?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
   if (m?.type === 'workerify:response' && m.id && pending.has(m.id)) {
     const resolver = pending.get(m.id);
     if (resolver) {
@@ -197,33 +220,40 @@ CHANNEL.addEventListener('message', (ev) => {
 console.log('[Workerify SW] Adding fetch event listener...');
 
 self.addEventListener('fetch', (event: FetchEvent) => {
-  const { request } = event;
-  const url = new URL(request.url);
+  event.respondWith(
+    (async () => {
+      const { request } = event;
+      const url = new URL(request.url);
 
-  // Handle registration endpoint
-  if (url.pathname === '/__workerify/register' && request.method === 'POST') {
-    event.respondWith(handleRegistration(event));
-    return;
-  }
+      // Handle registration endpoint
+      if (
+        url.pathname === '/__workerify/register' &&
+        request.method === 'POST'
+      ) {
+        console.log('[Workerify SW] Register new consumer');
+        return handleRegistration(event);
+      }
 
-  // Get the consumer ID for this client
-  const clientId = event.clientId || (event as any).resultingClientId;
-  const consumerId = clientId ? clientConsumerMap.get(clientId) : undefined;
+      // Get the consumer ID for this client
+      const clientId = event.clientId || (event as any).resultingClientId;
+      const consumerId = clientId ? clientConsumerMap.get(clientId) : undefined;
 
-  if (!consumerId) {
-    // No consumer registered for this client
-    return;
-  }
+      if (!consumerId) {
+        // No consumer registered for this client
+        return fetch(request);
+      }
 
-  // Get routes for this consumer
-  const routes = consumerRoutesMap.get(consumerId) || [];
-  const hit = matchRoute(request.url, request.method, routes);
+      // Get routes for this consumer
+      const routes = consumerRoutesMap.get(consumerId) || [];
+      const hit = matchRoute(request.url, request.method, routes);
 
-  if (!hit) {
-    return;
-  }
+      if (!hit) {
+        return fetch(request);
+      }
 
-  event.respondWith(handle(event, consumerId));
+      return handle(event, consumerId);
+    })(),
+  );
 });
 
 async function handleRegistration(event: FetchEvent): Promise<Response> {

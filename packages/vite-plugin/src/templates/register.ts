@@ -77,6 +77,12 @@ export async function registerWorkerifySW(): Promise<ServiceWorkerRegistration |
       // Check if SW becomes active quickly
       const checkActive = () => {
         if (navigator.serviceWorker.controller) {
+          const bc = new BroadcastChannel('workerify');
+          // Send acknowledgment
+          bc.postMessage({
+            type: 'workerify:sw:check-readiness:response',
+            body: true,
+          });
           console.log('[Workerify] Service worker is now controlling');
           cleanup();
         }

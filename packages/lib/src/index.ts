@@ -345,6 +345,43 @@ export class Workerify {
       );
     }
 
+    const readiness = await new Promise<boolean>((resolve) => {
+      // Set up listener for acknowledgment
+      const handleRoutesAck = (event: MessageEvent<BroadcastMessage>) => {
+        const message = event.data;
+        if (message.type === 'workerify:sw:check-readiness:response') {
+          this.channel.removeEventListener('message', handleRoutesAck);
+          if (this.options.logger) {
+            console.log('[Workerify] Routes registered successfully');
+          }
+          resolve(message.body || false);
+        }
+      };
+      this.channel.postMessage({
+        type: 'workerify:sw:check-readiness',
+      });
+
+      this.channel.addEventListener('message', handleRoutesAck);
+
+      // Timeout after 1 seconds
+      setTimeout(() => {
+        this.channel.removeEventListener('message', handleRoutesAck);
+        if (this.options.logger) {
+          console.warn(
+            '[Workerify] Routes registration timeout - continuing anyway',
+          );
+        }
+        resolve(false);
+      }, 1000);
+    });
+    console.log('[Workerify] Readiness', readiness);
+
+    await new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(true);
+      }, 50);
+    });
+
     // Register this consumer with the service worker
     try {
       const response = await fetch('/__workerify/register', {
@@ -391,7 +428,7 @@ export class Workerify {
         // Send routes update
         this.updateServiceWorkerRoutes();
 
-        // Timeout after 5 seconds
+        // Timeout after 1 seconds
         setTimeout(() => {
           this.channel.removeEventListener('message', handleRoutesAck);
           if (this.options.logger) {
@@ -400,7 +437,7 @@ export class Workerify {
             );
           }
           resolve();
-        }, 5000);
+        }, 1000);
       });
     } catch (error) {
       if (this.options.logger) {
