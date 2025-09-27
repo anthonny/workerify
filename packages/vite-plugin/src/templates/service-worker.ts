@@ -12,6 +12,100 @@ const consumerRoutesMap = new Map<
   Array<{ method?: string; path: string; match?: string }>
 >();
 
+// IndexedDB configuration
+const DB_NAME = 'workerify-sw-state';
+const DB_VERSION = 1;
+const STORE_NAME = 'state';
+
+// Initialize IndexedDB
+async function initDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+  });
+}
+
+// Save state to IndexedDB
+async function saveState() {
+  try {
+    const db = await initDB();
+    const tx = db.transaction([STORE_NAME], 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+
+    // Convert Maps to serializable arrays
+    const clientConsumerArray = Array.from(clientConsumerMap.entries());
+    const consumerRoutesArray = Array.from(consumerRoutesMap.entries());
+
+    store.put(clientConsumerArray, 'clientConsumerMap');
+    store.put(consumerRoutesArray, 'consumerRoutesMap');
+
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+
+    db.close();
+    console.log('[Workerify SW] State saved to IndexedDB');
+  } catch (error) {
+    console.error('[Workerify SW] Failed to save state:', error);
+  }
+}
+
+// Load state from IndexedDB
+async function loadState() {
+  try {
+    const db = await initDB();
+    const tx = db.transaction([STORE_NAME], 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+
+    const clientConsumerRequest = store.get('clientConsumerMap');
+    const consumerRoutesRequest = store.get('consumerRoutesMap');
+
+    const [clientConsumerArray, consumerRoutesArray] = await Promise.all([
+      new Promise<[string, string][]>((resolve) => {
+        clientConsumerRequest.onsuccess = () =>
+          resolve(clientConsumerRequest.result || []);
+      }),
+      new Promise<
+        [string, Array<{ method?: string; path: string; match?: string }>][]
+      >((resolve) => {
+        consumerRoutesRequest.onsuccess = () =>
+          resolve(consumerRoutesRequest.result || []);
+      }),
+    ]);
+
+    // Restore Maps from arrays
+    clientConsumerMap.clear();
+    clientConsumerArray.forEach(([key, value]) =>
+      clientConsumerMap.set(key, value),
+    );
+
+    consumerRoutesMap.clear();
+    consumerRoutesArray.forEach(([key, value]) =>
+      consumerRoutesMap.set(key, value),
+    );
+
+    db.close();
+    console.log('[Workerify SW] State loaded from IndexedDB');
+    console.log('[Workerify SW] Restored clients:', clientConsumerMap.size);
+    console.log('[Workerify SW] Restored consumers:', consumerRoutesMap.size);
+  } catch (error) {
+    console.error('[Workerify SW] Failed to load state:', error);
+  }
+}
+
+// Load state on service worker startup
+loadState();
+
 CHANNEL.onmessage = (ev) => {
   const msg = ev.data;
   if (msg?.type === 'workerify:sw:check-readiness') {
@@ -33,6 +127,9 @@ CHANNEL.onmessage = (ev) => {
     );
     consumerRoutesMap.set(msg.consumerId, msg.routes || []);
 
+    // Save state to IndexedDB
+    saveState();
+
     // Send acknowledgment
     CHANNEL.postMessage({
       type: 'workerify:routes:update:response',
@@ -51,6 +148,8 @@ CHANNEL.onmessage = (ev) => {
   if (msg?.type === 'workerify:routes:clear') {
     consumerRoutesMap.clear();
     clientConsumerMap.clear();
+    // Save cleared state to IndexedDB
+    saveState();
   }
 
   if (msg?.type === 'workerify:clients:list') {
@@ -147,6 +246,11 @@ async function cleanupClosedClients() {
       clientConsumerMap.delete(clientId);
       console.log('[Workerify SW] Cleaned up client:', clientId);
     });
+
+    // Save state after cleanup
+    if (toRemove.length > 0) {
+      saveState();
+    }
   } catch (error) {
     console.error('[Workerify SW] Cleanup error:', error);
   }
@@ -225,6 +329,12 @@ self.addEventListener('fetch', (event: FetchEvent) => {
       const { request } = event;
       const url = new URL(request.url);
 
+      // We reload the database here because in some cases (like FF which kill the SW quickly for inactive)
+      // this the first call when the SW wakeup without runtime all the lifecycle, so everything is empty
+      if (clientConsumerMap.entries.length === 0) {
+        await loadState();
+      }
+
       // Handle registration endpoint
       if (
         url.pathname === '/__workerify/register' &&
@@ -284,6 +394,9 @@ async function handleRegistration(event: FetchEvent): Promise<Response> {
 
     // Set the new mapping
     clientConsumerMap.set(clientId, consumerId);
+
+    // Save state to IndexedDB
+    saveState();
 
     console.log(
       '[Workerify SW] Registered consumer:',

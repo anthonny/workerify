@@ -376,9 +376,9 @@ export class Workerify {
     });
     console.log('[Workerify] Readiness', readiness);
 
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       setTimeout(() => {
-        resolve(true);
+        resolve();
       }, 50);
     });
 
