@@ -1,5 +1,5 @@
-import { getRegisterModule } from './generated/register-template.js';
-import { SW_TEMPLATE } from './generated/service-worker-template.js';
+import { getRegisterModule } from './generated/register-template';
+import { SW_TEMPLATE } from './generated/service-worker-template';
 
 // Plugin interface definition to avoid vite dependency
 interface Plugin {

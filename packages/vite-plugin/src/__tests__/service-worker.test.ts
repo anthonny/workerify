@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SW_TEMPLATE } from '../generated/service-worker-template.js';
+import { SW_TEMPLATE } from '../generated/service-worker-template';
 import { isValidJavaScript } from './test-utils.js';
 
 describe('Service Worker Template', () => {

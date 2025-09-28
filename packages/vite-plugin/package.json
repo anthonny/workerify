@@ -28,16 +28,17 @@
   },
   "scripts": {
     "prebuild": "node scripts/build-templates.js",
-    "build": "tsc",
-    "dev": "npm run prebuild && tsc --watch",
+    "build": "vite build && tsc --emitDeclarationOnly",
+    "dev": "npm run prebuild && vite build --watch",
     "clean": "rm -rf dist src/generated",
     "lint": "biome check .",
     "lint:fix": "biome check --fix .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "typecheck": "npm run prebuild && tsc --noEmit",
+    "pretest": "npm run prebuild",
+    "test": "vitest run",
+    "test:watch": "npm run prebuild && vitest --watch",
+    "test:ui": "npm run prebuild && vitest --ui",
+    "test:coverage": "npm run prebuild && vitest --coverage"
   },
   "keywords": [
     "service-worker",

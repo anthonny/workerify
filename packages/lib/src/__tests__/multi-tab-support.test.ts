@@ -215,7 +215,7 @@ describe('Multi-tab Support', () => {
       const listenPromise = workerify.listen();
 
       // Fast-forward time to trigger timeout
-      vi.advanceTimersByTime(5001);
+      await vi.advanceTimersByTimeAsync(5001);
 
       await listenPromise; // Should resolve due to timeout
 
@@ -288,14 +288,17 @@ describe('Multi-tab Support', () => {
 
       channel.postMessage.mockClear();
 
-      setTimeout(() => {
-        channel.simulateMessage({
-          type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId,
-        });
-      }, 10);
+      // Set up a promise to send the acknowledgment after listen() starts
+      const listenPromise = workerify.listen();
 
-      await workerify.listen();
+      // Send acknowledgment after a short delay to allow listen() to set up listeners
+      await new Promise(resolve => setTimeout(resolve, 10));
+      channel.simulateMessage({
+        type: 'workerify:routes:update:response',
+        consumerId: (workerify as any).consumerId,
+      });
+
+      await listenPromise;
 
       // Should send routes during listen
       expect(channel.postMessage).toHaveBeenCalledWith(
@@ -332,24 +335,27 @@ describe('Multi-tab Support', () => {
           json: () => Promise.resolve({ clientId: 'client-2' }),
         });
 
-      // Simulate acknowledgments
-      setTimeout(() => {
-        const channel1 = (instance1 as any).channel as MockBroadcastChannel;
-        channel1.simulateMessage({
-          type: 'workerify:routes:update:response',
-          consumerId: consumerId1,
-        });
-      }, 10);
+      // Start both listen() calls
+      const listen1Promise = instance1.listen();
+      const listen2Promise = instance2.listen();
 
-      setTimeout(() => {
-        const channel2 = (instance2 as any).channel as MockBroadcastChannel;
-        channel2.simulateMessage({
-          type: 'workerify:routes:update:response',
-          consumerId: consumerId2,
-        });
-      }, 20);
+      // Send acknowledgments after a short delay to allow listen() to set up listeners
+      await new Promise(resolve => setTimeout(resolve, 10));
 
-      await Promise.all([instance1.listen(), instance2.listen()]);
+      const channel1 = (instance1 as any).channel as MockBroadcastChannel;
+      const channel2 = (instance2 as any).channel as MockBroadcastChannel;
+
+      channel1.simulateMessage({
+        type: 'workerify:routes:update:response',
+        consumerId: consumerId1,
+      });
+
+      channel2.simulateMessage({
+        type: 'workerify:routes:update:response',
+        consumerId: consumerId2,
+      });
+
+      await Promise.all([listen1Promise, listen2Promise]);
 
       expect((instance1 as any).clientId).toBe('client-1');
       expect((instance2 as any).clientId).toBe('client-2');
