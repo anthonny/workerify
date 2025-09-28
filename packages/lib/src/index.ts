@@ -354,7 +354,7 @@ export class Workerify {
           if (this.options.logger) {
             console.log('[Workerify] Routes registered successfully');
           }
-          resolve(message.body || false);
+          resolve(typeof message.body === 'boolean' ? message.body : false);
         }
       };
       this.channel.postMessage({

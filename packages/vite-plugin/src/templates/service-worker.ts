@@ -1,4 +1,21 @@
 // === Workerify SW ===
+// Body types (matching lib package)
+type WorkerifyBody = ArrayBuffer | string | null | object;
+type BodyType = 'json' | 'text' | 'arrayBuffer';
+
+// HTTP response types
+interface ResponseData {
+  status?: number;
+  statusText?: string;
+  headers?: Record<string, string>;
+  body?: WorkerifyBody;
+  bodyType?: BodyType;
+}
+
+interface WorkerifyResponse extends ResponseData {
+  type: string;
+  id?: string;
+}
 console.log('[Workerify SW] Service worker script loaded');
 console.log('[Workerify SW] Current location:', self.location.href);
 console.log('[Workerify SW] Scope:', self.registration?.scope);
@@ -85,14 +102,14 @@ async function loadState() {
 
     // Restore Maps from arrays
     clientConsumerMap.clear();
-    clientConsumerArray.forEach(([key, value]) =>
-      clientConsumerMap.set(key, value),
-    );
+    clientConsumerArray.forEach(([key, value]) => {
+      clientConsumerMap.set(key, value);
+    });
 
     consumerRoutesMap.clear();
-    consumerRoutesArray.forEach(([key, value]) =>
-      consumerRoutesMap.set(key, value),
-    );
+    consumerRoutesArray.forEach(([key, value]) => {
+      consumerRoutesMap.set(key, value);
+    });
 
     db.close();
     console.log('[Workerify SW] State loaded from IndexedDB');
@@ -178,7 +195,7 @@ CHANNEL.onmessage = (ev) => {
           ),
         );
       })
-      .catch((error: any) => {
+      .catch((error: unknown) => {
         console.error('[Workerify SW] Error listing clients:', error);
       });
   }
@@ -304,7 +321,10 @@ function matchRoute(
   return null;
 }
 
-const pending = new Map<string, { resolve: (value: any) => void }>();
+const pending = new Map<
+  string,
+  { resolve: (value: WorkerifyResponse) => void }
+>();
 
 CHANNEL.addEventListener('message', (ev) => {
   const m = ev.data;
@@ -345,7 +365,10 @@ self.addEventListener('fetch', (event: FetchEvent) => {
       }
 
       // Get the consumer ID for this client
-      const clientId = event.clientId || (event as any).resultingClientId;
+      const clientId =
+        event.clientId ||
+        (event as FetchEvent & { resultingClientId?: string })
+          .resultingClientId;
       const consumerId = clientId ? clientConsumerMap.get(clientId) : undefined;
 
       if (!consumerId) {
@@ -370,7 +393,9 @@ async function handleRegistration(event: FetchEvent): Promise<Response> {
   try {
     const data = await event.request.json();
     const { consumerId } = data;
-    const clientId = event.clientId || (event as any).resultingClientId;
+    const clientId =
+      event.clientId ||
+      (event as FetchEvent & { resultingClientId?: string }).resultingClientId;
 
     if (!clientId || !consumerId) {
       return new Response(JSON.stringify({ error: 'Invalid registration' }), {
@@ -442,8 +467,9 @@ async function handle(
   const req = event.request;
   const id = Math.random().toString(36).slice(2);
   const headers: Record<string, string> = {};
-  // biome: ignore
-  req.headers.forEach((v, k) => (headers[k] = v));
+  req.headers.forEach((v, k) => {
+    headers[k] = v;
+  });
   const body =
     req.method === 'GET' || req.method === 'HEAD'
       ? null
@@ -462,7 +488,7 @@ async function handle(
     },
   });
 
-  const resp: any = await p;
+  const resp = (await p) as WorkerifyResponse;
 
   const h = new Headers(resp.headers || {});
   const init: ResponseInit = {
@@ -472,7 +498,7 @@ async function handle(
   };
 
   if (resp.body && resp.bodyType === 'arrayBuffer') {
-    return new Response(resp.body, init);
+    return new Response(resp.body as ArrayBuffer, init);
   }
 
   if (resp.body && resp.bodyType === 'json') {
@@ -480,7 +506,14 @@ async function handle(
     return new Response(JSON.stringify(resp.body), init);
   }
 
-  return new Response(resp.body ?? '', init);
+  return new Response(
+    typeof resp.body === 'string'
+      ? resp.body
+      : resp.body
+        ? JSON.stringify(resp.body)
+        : '',
+    init,
+  );
 }
 
 // === End Workerify SW ===

@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import type { WorkerifyReply, WorkerifyRequest } from '../types.js';
+import type { WorkerifyReply } from '../types.js';
 import {
-  createMockReply,
   createMockRequest,
   setupBroadcastChannelMock,
   stringToArrayBuffer,
-  waitForAsync,
 } from './test-utils.js';
 
 // Setup mocks
@@ -273,7 +271,7 @@ describe('Request Handling', () => {
     });
 
     it('should allow handlers to modify reply object', async () => {
-      const handler = vi.fn().mockImplementation((req, reply) => {
+      const handler = vi.fn().mockImplementation((_req, reply) => {
         reply.status = 201;
         reply.statusText = 'Created';
         reply.headers = { 'X-Custom': 'value' };
@@ -445,7 +443,7 @@ describe('Request Handling', () => {
 
   describe('BroadcastChannel response sending', () => {
     it('should send response via BroadcastChannel', () => {
-      const postMessage = vi.spyOn(workerify['channel'], 'postMessage');
+      const postMessage = vi.spyOn(workerify.channel, 'postMessage');
       const sendResponse = (workerify as any).sendResponse.bind(workerify);
 
       const reply: WorkerifyReply = {

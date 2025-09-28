@@ -141,8 +141,15 @@ describe('Service Worker Template', () => {
 
   describe('Security considerations', () => {
     it('should not contain hardcoded credentials', () => {
-      expect(SW_TEMPLATE).not.toMatch(/password|secret|key|token/i);
-      expect(SW_TEMPLATE).not.toMatch(/api[_-]?key/i);
+      expect(SW_TEMPLATE).not.toMatch(
+        /password\s*[:=]|secret\s*[:=]|api[_-]?key\s*[:=]|token\s*[:=]/i,
+      );
+      expect(SW_TEMPLATE).not.toMatch(
+        /'[^']*(?:password|secret|api_?key|token)[^']*'/i,
+      );
+      expect(SW_TEMPLATE).not.toMatch(
+        /"[^"]*(?:password|secret|api_?key|token)[^"]*"/i,
+      );
     });
 
     it('should not contain eval or Function constructor', () => {

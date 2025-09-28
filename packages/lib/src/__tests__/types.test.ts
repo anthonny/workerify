@@ -123,7 +123,7 @@ describe('Type Definitions', () => {
 
   describe('RouteHandler', () => {
     it('should support synchronous handlers', () => {
-      const handler: RouteHandler = (request, reply) => {
+      const handler: RouteHandler = (_request, _reply) => {
         return 'sync response';
       };
 
@@ -131,7 +131,7 @@ describe('Type Definitions', () => {
     });
 
     it('should support asynchronous handlers', () => {
-      const handler: RouteHandler = async (request, reply) => {
+      const handler: RouteHandler = async (_request, _reply) => {
         return Promise.resolve('async response');
       };
 
@@ -139,7 +139,7 @@ describe('Type Definitions', () => {
     });
 
     it('should support handlers that return void', () => {
-      const handler: RouteHandler = (request, reply) => {
+      const handler: RouteHandler = (_request, reply) => {
         reply.status = 200;
         reply.body = 'modified reply';
         // No return value
@@ -305,7 +305,7 @@ describe('Type Definitions', () => {
 
   describe('WorkerifyPlugin', () => {
     it('should support synchronous plugin', () => {
-      const plugin: WorkerifyPlugin = (instance, options) => {
+      const plugin: WorkerifyPlugin = (_instance, _options) => {
         // Plugin implementation
       };
 
@@ -313,7 +313,7 @@ describe('Type Definitions', () => {
     });
 
     it('should support asynchronous plugin', () => {
-      const plugin: WorkerifyPlugin = async (instance, options) => {
+      const plugin: WorkerifyPlugin = async (_instance, _options) => {
         return Promise.resolve();
       };
 
@@ -326,7 +326,7 @@ describe('Type Definitions', () => {
         enabled: boolean;
       }
 
-      const plugin: WorkerifyPlugin = (instance, options: PluginOptions) => {
+      const plugin: WorkerifyPlugin = (_instance, options: PluginOptions) => {
         if (options?.enabled) {
           // Plugin logic
         }
@@ -336,7 +336,7 @@ describe('Type Definitions', () => {
     });
 
     it('should support plugin without options', () => {
-      const plugin: WorkerifyPlugin = (instance) => {
+      const plugin: WorkerifyPlugin = (_instance) => {
         // Plugin implementation without options
       };
 
@@ -348,7 +348,7 @@ describe('Type Definitions', () => {
     it('should allow route handlers to be assigned to RouteHandler type', () => {
       const syncHandler = () => 'sync';
       const asyncHandler = async () => 'async';
-      const voidHandler = (req: WorkerifyRequest, reply: WorkerifyReply) => {
+      const voidHandler = (_req: WorkerifyRequest, reply: WorkerifyReply) => {
         reply.status = 200;
       };
 

@@ -241,7 +241,7 @@ describe('Plugin System', () => {
           options;
 
         // Add OPTIONS handler for preflight
-        app.option('/*', (req, reply) => {
+        app.option('/*', (_req, reply) => {
           reply.headers = {
             'Access-Control-Allow-Origin': origin.join(', '),
             'Access-Control-Allow-Methods': methods.join(', '),
@@ -270,7 +270,7 @@ describe('Plugin System', () => {
       const loggingPlugin: WorkerifyPlugin = (app) => {
         // In a real implementation, this would intercept requests
         // For testing, we'll just add a route that logs
-        app.all('/logged/*', (req, reply) => {
+        app.all('/logged/*', (req, _reply) => {
           logs.push(`${req.method} ${req.url}`);
           return { logged: true };
         });
@@ -295,7 +295,7 @@ describe('Plugin System', () => {
         const { secret, protected: protectedRoutes } = options;
 
         // Add auth route
-        app.post('/auth/login', (req) => {
+        app.post('/auth/login', (_req) => {
           // Simulate authentication
           return { token: 'fake-jwt-token', secret };
         });

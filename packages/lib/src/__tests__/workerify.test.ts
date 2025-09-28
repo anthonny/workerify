@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import {
-  createMockRequest,
-  setupBroadcastChannelMock,
-  waitForAsync,
-} from './test-utils.js';
+import { setupBroadcastChannelMock } from './test-utils.js';
 
 // Setup mocks
 setupBroadcastChannelMock();
@@ -134,8 +130,8 @@ describe('Workerify', () => {
 
       // Mock routes acknowledgment
       setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
+        const channel = workerify.channel as any;
+        if (channel?.listeners) {
           channel.listeners.forEach((listener: any) => {
             listener({
               data: {
@@ -171,8 +167,8 @@ describe('Workerify', () => {
       });
 
       setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
+        const channel = workerify.channel as any;
+        if (channel?.listeners) {
           channel.listeners.forEach((listener: any) => {
             listener({
               data: {
@@ -198,8 +194,8 @@ describe('Workerify', () => {
       });
 
       setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
+        const channel = workerify.channel as any;
+        if (channel?.listeners) {
           channel.listeners.forEach((listener: any) => {
             listener({
               data: {
@@ -226,8 +222,8 @@ describe('Workerify', () => {
       });
 
       setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
+        const channel = workerify.channel as any;
+        if (channel?.listeners) {
           channel.listeners.forEach((listener: any) => {
             listener({
               data: {
@@ -263,7 +259,7 @@ describe('Workerify', () => {
 
   describe('Integration with BroadcastChannel', () => {
     it('should NOT send route updates when routes are registered (deferred to listen)', async () => {
-      const channelSpy = vi.spyOn(workerify['channel'], 'postMessage');
+      const channelSpy = vi.spyOn(workerify.channel, 'postMessage');
 
       workerify.get('/test', () => 'test');
 
@@ -272,7 +268,7 @@ describe('Workerify', () => {
     });
 
     it('should update service worker routes on listen', async () => {
-      const channelSpy = vi.spyOn(workerify['channel'], 'postMessage');
+      const channelSpy = vi.spyOn(workerify.channel, 'postMessage');
 
       workerify.get('/test1', () => 'test1');
       workerify.post('/test2', () => 'test2');
@@ -286,8 +282,8 @@ describe('Workerify', () => {
       });
 
       setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
+        const channel = workerify.channel as any;
+        if (channel?.listeners) {
           channel.listeners.forEach((listener: any) => {
             listener({
               data: {

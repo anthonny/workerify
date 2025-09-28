@@ -1,7 +1,7 @@
-import { exec } from 'child_process';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { promisify } from 'util';
+import { exec } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const execAsync = promisify(exec);
@@ -32,7 +32,7 @@ describe('Template Compilation System', () => {
       try {
         const stats = await fs.stat(scriptPath);
         expect(stats.isFile()).toBe(true);
-      } catch (error) {
+      } catch (_error) {
         throw new Error(`build-templates.js script not found at ${scriptPath}`);
       }
     });
@@ -58,7 +58,7 @@ describe('Template Compilation System', () => {
       try {
         const stats = await fs.stat(templatePath);
         expect(stats.isFile()).toBe(true);
-      } catch (error) {
+      } catch (_error) {
         throw new Error(
           `service-worker.ts template not found at ${templatePath}`,
         );
@@ -71,7 +71,7 @@ describe('Template Compilation System', () => {
       try {
         const stats = await fs.stat(templatePath);
         expect(stats.isFile()).toBe(true);
-      } catch (error) {
+      } catch (_error) {
         throw new Error(`register.ts template not found at ${templatePath}`);
       }
     });
@@ -117,7 +117,7 @@ describe('Template Compilation System', () => {
       try {
         const stats = await fs.stat(outputPath);
         expect(stats.isFile()).toBe(true);
-      } catch (error) {
+      } catch (_error) {
         throw new Error(
           `Generated service-worker-template.ts not found at ${outputPath}`,
         );
@@ -130,7 +130,7 @@ describe('Template Compilation System', () => {
       try {
         const stats = await fs.stat(outputPath);
         expect(stats.isFile()).toBe(true);
-      } catch (error) {
+      } catch (_error) {
         throw new Error(
           `Generated register-template.ts not found at ${outputPath}`,
         );
@@ -175,7 +175,7 @@ describe('Template Compilation System', () => {
       try {
         const stats = await fs.stat(tsconfigPath);
         expect(stats.isFile()).toBe(true);
-      } catch (error) {
+      } catch (_error) {
         throw new Error(`tsconfig.templates.json not found at ${tsconfigPath}`);
       }
 
@@ -296,7 +296,7 @@ describe('Template Compilation System', () => {
         });
         // Should not contain TypeScript errors
         expect(result.stderr).not.toContain('error TS');
-      } catch (error) {
+      } catch (_error) {
         // If it fails, at least check that generated files exist
         const swExists = await fs
           .stat(path.join(generatedDir, 'service-worker-template.ts'))

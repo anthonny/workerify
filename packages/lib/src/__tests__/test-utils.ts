@@ -2,14 +2,14 @@ import type { WorkerifyReply, WorkerifyRequest } from '../types.js';
 
 // Mock BroadcastChannel for testing
 export class MockBroadcastChannel {
-  private listeners: Array<(event: { data: any }) => void> = [];
+  private listeners: Array<(event: { data: unknown }) => void> = [];
   name: string;
 
   constructor(name: string) {
     this.name = name;
   }
 
-  postMessage(data: any) {
+  postMessage(data: unknown) {
     // Simulate async message delivery
     setTimeout(() => {
       this.listeners.forEach((listener) => {
@@ -18,13 +18,16 @@ export class MockBroadcastChannel {
     }, 0);
   }
 
-  addEventListener(type: string, listener: (event: { data: any }) => void) {
+  addEventListener(type: string, listener: (event: { data: unknown }) => void) {
     if (type === 'message') {
       this.listeners.push(listener);
     }
   }
 
-  removeEventListener(type: string, listener: (event: { data: any }) => void) {
+  removeEventListener(
+    type: string,
+    listener: (event: { data: unknown }) => void,
+  ) {
     if (type === 'message') {
       const index = this.listeners.indexOf(listener);
       if (index > -1) {
@@ -37,7 +40,7 @@ export class MockBroadcastChannel {
     this.listeners = [];
   }
 
-  set onmessage(handler: ((event: { data: any }) => void) | null) {
+  set onmessage(handler: ((event: { data: unknown }) => void) | null) {
     if (handler) {
       this.addEventListener('message', handler);
     }
@@ -53,7 +56,14 @@ export function createMockRequest(
 ): WorkerifyRequest {
   return {
     url,
-    method: method as any,
+    method: method as
+      | 'GET'
+      | 'POST'
+      | 'PUT'
+      | 'DELETE'
+      | 'PATCH'
+      | 'HEAD'
+      | 'OPTIONS',
     headers: {
       'user-agent': 'test',
       ...headers,

@@ -4,15 +4,32 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "suspicious": {
+        "noTemplateCurlyInString": "off"
+      }
     },
-    "includes": ["**", "!**/dist/**", "!**/node_modules/**", "!**/.turbo/**"]
+    "includes": [
+      "**",
+      "!**/dist/**",
+      "!**/node_modules/**",
+      "!**/.turbo/**",
+      "!**/generated/**",
+      "!**/coverage/**"
+    ]
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
-    "includes": ["**", "!**/dist/**", "!**/node_modules/**"]
+    "includes": [
+      "**",
+      "!**/dist/**",
+      "!**/node_modules/**",
+      "!**/.turbo/**",
+      "!**/generated/**",
+      "!**/coverage/**"
+    ]
   },
   "javascript": {
     "formatter": {

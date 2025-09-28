@@ -18,6 +18,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "verbatimModuleSyntax": true,
     "lib": ["ES2022", "DOM", "WebWorker"]
   },
   "include": ["src/**/*", "*.d.ts"],

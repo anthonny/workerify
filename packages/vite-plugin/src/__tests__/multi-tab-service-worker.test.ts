@@ -1,5 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Client types
+interface ServiceWorkerClient {
+  id: string;
+  url?: string;
+  type?: string;
+  frameType?: string;
+}
+
+// Service Worker API types
+interface ClientMatchAllOptions {
+  includeUncontrolled?: boolean;
+}
+
 // Mock the global scope
 const mockClients = {
   matchAll: vi.fn(),
@@ -12,7 +25,7 @@ const mockRegistration = {
 
 const mockBroadcastChannel = {
   postMessage: vi.fn(),
-  onmessage: null as any,
+  onmessage: null as ((event: MessageEvent) => void) | null,
   addEventListener: vi.fn(),
   close: vi.fn(),
 };
@@ -25,16 +38,18 @@ global.self = {
   addEventListener: vi.fn(),
   skipWaiting: vi.fn(),
   BroadcastChannel: vi.fn(() => mockBroadcastChannel),
-} as any;
+} as unknown as ServiceWorkerGlobalScope;
 
-global.BroadcastChannel = vi.fn(() => mockBroadcastChannel) as any;
-
-// Import after mocks are set up
-import serviceWorkerCode from '../templates/service-worker';
+global.BroadcastChannel = vi.fn(
+  () => mockBroadcastChannel,
+) as unknown as typeof BroadcastChannel;
 
 describe('Service Worker Multi-tab Support', () => {
   let clientConsumerMap: Map<string, string>;
-  let consumerRoutesMap: Map<string, any[]>;
+  let consumerRoutesMap: Map<
+    string,
+    Array<{ method: string; path: string; handler: string }>
+  >;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -45,7 +60,7 @@ describe('Service Worker Multi-tab Support', () => {
 
   describe('Client Registration', () => {
     it('should handle /__workerify/register endpoint', async () => {
-      const mockEvent = {
+      const _mockEvent = {
         request: {
           url: 'http://localhost:3000/__workerify/register',
           method: 'POST',
@@ -153,7 +168,7 @@ describe('Service Worker Multi-tab Support', () => {
 
     it('should send acknowledgment for route updates', () => {
       const consumerId = 'consumer-ack-456';
-      const message = {
+      const _message = {
         type: 'workerify:routes:update',
         consumerId,
         routes: [],
@@ -190,7 +205,9 @@ describe('Service Worker Multi-tab Support', () => {
       };
 
       const resolvedConsumerId = clientConsumerMap.get(mockEvent.clientId);
-      const routes = consumerRoutesMap.get(resolvedConsumerId!);
+      const routes = resolvedConsumerId
+        ? consumerRoutesMap.get(resolvedConsumerId)
+        : undefined;
 
       expect(resolvedConsumerId).toBe(consumerId);
       expect(routes).toBeDefined();
@@ -231,13 +248,17 @@ describe('Service Worker Multi-tab Support', () => {
       // Request from client1 should only match consumer1 routes
       const event1 = { clientId: client1 };
       const consumer1Id = clientConsumerMap.get(event1.clientId);
-      const routes1 = consumerRoutesMap.get(consumer1Id!);
+      const routes1 = consumer1Id
+        ? consumerRoutesMap.get(consumer1Id)
+        : undefined;
       expect(routes1?.[0].path).toBe('/api/v1');
 
       // Request from client2 should only match consumer2 routes
       const event2 = { clientId: client2 };
       const consumer2Id = clientConsumerMap.get(event2.clientId);
-      const routes2 = consumerRoutesMap.get(consumer2Id!);
+      const routes2 = consumer2Id
+        ? consumerRoutesMap.get(consumer2Id)
+        : undefined;
       expect(routes2?.[0].path).toBe('/api/v2');
     });
   });
@@ -261,10 +282,12 @@ describe('Service Worker Multi-tab Support', () => {
       const allClients = await mockClients.matchAll({
         includeUncontrolled: true,
       });
-      const activeClientIds = new Set(allClients.map((c: any) => c.id));
+      const activeClientIds = new Set(
+        allClients.map((c: ServiceWorkerClient) => c.id),
+      );
 
       const toRemove: string[] = [];
-      clientConsumerMap.forEach((consumerId, clientId) => {
+      clientConsumerMap.forEach((_consumerId, clientId) => {
         if (!activeClientIds.has(clientId)) {
           toRemove.push(clientId);
         }
@@ -295,7 +318,9 @@ describe('Service Worker Multi-tab Support', () => {
       const allClients = await mockClients.matchAll({
         includeUncontrolled: true,
       });
-      const activeClientIds = new Set(allClients.map((c: any) => c.id));
+      const activeClientIds = new Set(
+        allClients.map((c: ServiceWorkerClient) => c.id),
+      );
 
       const consumersToClean = new Set<string>();
       clientConsumerMap.forEach((consumerId, clientId) => {
@@ -342,27 +367,31 @@ describe('Service Worker Multi-tab Support', () => {
       clientConsumerMap.set(client2, consumer2);
 
       // Mock matchAll with includeUncontrolled to return both clients
-      mockClients.matchAll.mockImplementation((options?: any) => {
-        if (options?.includeUncontrolled) {
+      mockClients.matchAll.mockImplementation(
+        (options?: ClientMatchAllOptions) => {
+          if (options?.includeUncontrolled) {
+            return Promise.resolve([
+              { id: client1, url: 'http://localhost:3000/' },
+              { id: client2, url: 'http://localhost:3000/' },
+            ]);
+          }
+          // Without includeUncontrolled, only return controlled client
           return Promise.resolve([
             { id: client1, url: 'http://localhost:3000/' },
-            { id: client2, url: 'http://localhost:3000/' },
           ]);
-        }
-        // Without includeUncontrolled, only return controlled client
-        return Promise.resolve([
-          { id: client1, url: 'http://localhost:3000/' },
-        ]);
-      });
+        },
+      );
 
       // Simulate cleanup with includeUncontrolled: true
       const allClients = await mockClients.matchAll({
         includeUncontrolled: true,
       });
-      const activeClientIds = new Set(allClients.map((c: any) => c.id));
+      const activeClientIds = new Set(
+        allClients.map((c: ServiceWorkerClient) => c.id),
+      );
 
       const toRemove: string[] = [];
-      clientConsumerMap.forEach((consumerId, clientId) => {
+      clientConsumerMap.forEach((_consumerId, clientId) => {
         if (!activeClientIds.has(clientId)) {
           toRemove.push(clientId);
         }
@@ -388,23 +417,25 @@ describe('Service Worker Multi-tab Support', () => {
       clientConsumerMap.set(uncontrolledClient, consumer2);
 
       // Mock matchAll behavior
-      mockClients.matchAll.mockImplementation((options?: any) => {
-        if (options?.includeUncontrolled) {
+      mockClients.matchAll.mockImplementation(
+        (options?: ClientMatchAllOptions) => {
+          if (options?.includeUncontrolled) {
+            return Promise.resolve([
+              { id: controlledClient, url: 'http://localhost:3000/' },
+              { id: uncontrolledClient, url: 'http://localhost:3000/' },
+            ]);
+          }
+          // Without includeUncontrolled, only return controlled client
           return Promise.resolve([
             { id: controlledClient, url: 'http://localhost:3000/' },
-            { id: uncontrolledClient, url: 'http://localhost:3000/' },
           ]);
-        }
-        // Without includeUncontrolled, only return controlled client
-        return Promise.resolve([
-          { id: controlledClient, url: 'http://localhost:3000/' },
-        ]);
-      });
+        },
+      );
 
       // Test cleanup WITHOUT includeUncontrolled (would be problematic)
       const controlledClientsOnly = await mockClients.matchAll();
       const controlledClientIds = new Set(
-        controlledClientsOnly.map((c: any) => c.id),
+        controlledClientsOnly.map((c: ServiceWorkerClient) => c.id),
       );
 
       expect(controlledClientIds.has(controlledClient)).toBe(true);
@@ -414,7 +445,9 @@ describe('Service Worker Multi-tab Support', () => {
       const allClients = await mockClients.matchAll({
         includeUncontrolled: true,
       });
-      const allClientIds = new Set(allClients.map((c: any) => c.id));
+      const allClientIds = new Set(
+        allClients.map((c: ServiceWorkerClient) => c.id),
+      );
 
       expect(allClientIds.has(controlledClient)).toBe(true);
       expect(allClientIds.has(uncontrolledClient)).toBe(true); // This prevents premature cleanup
@@ -472,10 +505,12 @@ describe('Service Worker Multi-tab Support', () => {
         const allClients = await mockClients.matchAll({
           includeUncontrolled: true,
         });
-        const activeClientIds = new Set(allClients.map((c: any) => c.id));
+        const activeClientIds = new Set(
+          allClients.map((c: ServiceWorkerClient) => c.id),
+        );
 
         const toRemove: string[] = [];
-        clientConsumerMap.forEach((consumerId, clientId) => {
+        clientConsumerMap.forEach((_consumerId, clientId) => {
           if (!activeClientIds.has(clientId)) {
             toRemove.push(clientId);
           }
@@ -516,7 +551,7 @@ describe('Service Worker Multi-tab Support', () => {
 
       const periodicCleanup = async () => {
         try {
-          const allClients = await mockClients.matchAll({
+          const _allClients = await mockClients.matchAll({
             includeUncontrolled: true,
           });
           // ... cleanup logic
@@ -542,7 +577,7 @@ describe('Service Worker Multi-tab Support', () => {
       const periodicCleanup = async () => {
         try {
           await mockClients.matchAll({ includeUncontrolled: true });
-        } catch (error) {
+        } catch (_error) {
           // Silently handle error to continue periodic execution
         }
       };

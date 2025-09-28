@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import type { BroadcastMessage } from '../types.js';
 
 // Mock fetch for registration
 global.fetch = vi.fn();
@@ -41,9 +40,11 @@ class MockBroadcastChannel {
   }
 
   // Helper to simulate receiving a message
-  simulateMessage(data: any) {
+  simulateMessage(data: unknown) {
     const event = new MessageEvent('message', { data });
-    this.listeners.get('message')?.forEach((listener) => listener(event));
+    this.listeners.get('message')?.forEach((listener) => {
+      listener(event);
+    });
   }
 }
 
@@ -58,7 +59,9 @@ describe('Multi-tab Support', () => {
     vi.clearAllMocks();
     mockFetch = global.fetch as ReturnType<typeof vi.fn>;
     // Mock location for proper URL
-    global.location = { origin: 'http://localhost:3000' } as any;
+    global.location = {
+      origin: 'http://localhost:3000',
+    } as unknown as Location;
     workerify = new Workerify({ logger: false });
   });
 
@@ -71,9 +74,9 @@ describe('Multi-tab Support', () => {
       const instance1 = new Workerify({ logger: false });
       const instance2 = new Workerify({ logger: false });
 
-      // Access private property through any cast
-      const consumerId1 = (instance1 as any).consumerId;
-      const consumerId2 = (instance2 as any).consumerId;
+      // Access private property through type assertion
+      const consumerId1 = (instance1 as { consumerId: string }).consumerId;
+      const consumerId2 = (instance2 as { consumerId: string }).consumerId;
 
       expect(consumerId1).toBeDefined();
       expect(consumerId2).toBeDefined();
