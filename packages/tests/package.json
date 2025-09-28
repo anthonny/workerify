@@ -1,0 +1,27 @@
+{
+  "name": "@workerify/tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end tests for Workerify examples using Playwright-BDD",
+  "type": "module",
+  "scripts": {
+    "test": "pnpm build:example && bddgen && playwright test",
+    "test:ui": "pnpm build:example && bddgen && playwright test --ui",
+    "test:headed": "pnpm build:example && bddgen && playwright test --headed",
+    "test:debug": "pnpm build:example && bddgen && playwright test --debug",
+    "test:codegen": "playwright codegen",
+    "test:report": "playwright show-report",
+    "bddgen": "bddgen",
+    "build:example": "pnpm -F @workerify/example-htmx build",
+    "serve:example": "sirv ../examples/htmx/dist --port 3000 --host"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.2",
+    "playwright-bdd": "^8.0.0",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "sirv-cli": "^2.0.2"
+  }
+}
