@@ -69,11 +69,14 @@ export class Workerify {
         request.headers['content-type']?.includes(
           'application/x-www-form-urlencoded',
         ) &&
-        request.body
+        request.body &&
+        (request.body instanceof ArrayBuffer ||
+          ArrayBuffer.isView(request.body) ||
+          request.body.constructor?.name === 'ArrayBuffer')
       ) {
         try {
           const decoder = new TextDecoder();
-          const text = decoder.decode(request.body);
+          const text = decoder.decode(request.body as ArrayBuffer);
           const params = new URLSearchParams(text);
           const formData: Record<string, string> = {};
 
@@ -81,8 +84,8 @@ export class Workerify {
             formData[key] = value;
           }
 
-          // Replace the ArrayBuffer body with parsed JSON
-          request.body = formData as any;
+          // Replace the ArrayBuffer body with parsed form data
+          request.body = formData;
         } catch (error) {
           if (this.options.logger) {
             console.error('[Workerify] Error parsing form data:', error);
@@ -183,7 +186,8 @@ export class Workerify {
         // This is a parameter
         const paramName = routePart.slice(1);
         if (paramName && pathPart) {
-          params[paramName] = pathPart;
+          // Decode parameter value to handle Unicode characters
+          params[paramName] = decodeURIComponent(pathPart);
         }
       } else if (routePart !== pathPart) {
         // Static part doesn't match
@@ -199,7 +203,8 @@ export class Workerify {
     url: string,
   ): { route: Route | null; params?: Record<string, string> } {
     const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
+    // Decode URI components to handle Unicode characters properly
+    const pathname = decodeURIComponent(urlObj.pathname);
 
     for (const route of this.routes) {
       // Check method match
@@ -374,7 +379,10 @@ export class Workerify {
         resolve(false);
       }, 1000);
     });
-    console.log('[Workerify] Readiness', readiness);
+
+    if (this.options.logger) {
+      console.log('[Workerify] Readiness', readiness);
+    }
 
     await new Promise<void>((resolve) => {
       setTimeout(() => {
@@ -458,7 +466,10 @@ export class Workerify {
     }
   }
 
-  async register(plugin: WorkerifyPlugin, options?: any): Promise<this> {
+  async register(
+    plugin: WorkerifyPlugin,
+    options?: Record<string, unknown>,
+  ): Promise<this> {
     await plugin(this, options);
     if (this.options.logger) {
       console.log('[Workerify] Plugin registered');

@@ -15,7 +15,7 @@ export interface WorkerifyRequest {
   url: string;
   method: HttpMethod;
   headers: Record<string, string>;
-  body?: ArrayBuffer | null;
+  body?: WorkerifyBody;
   params: Record<string, string>;
 }
 

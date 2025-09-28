@@ -1,16 +1,42 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import type { WorkerifyPlugin } from '../types.js';
-import { setupBroadcastChannelMock } from './test-utils.js';
+import type {
+  RouteHandler,
+  WorkerifyPlugin,
+  WorkerifyReply,
+  WorkerifyRequest,
+} from '../types.js';
+import { MockBroadcastChannel } from './test-utils.js';
 
-// Setup mocks
-setupBroadcastChannelMock();
+// Mock fetch for testing
+global.fetch = vi.fn();
+
+// @ts-expect-error
+global.BroadcastChannel = MockBroadcastChannel;
 
 describe('Plugin System', () => {
   let workerify: Workerify;
+  let mockFetch: ReturnType<typeof vi.fn>;
+  let mockChannel: MockBroadcastChannel;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch = global.fetch as ReturnType<typeof vi.fn>;
+
+    // Create a mock channel instance that will be used by Workerify
+    mockChannel = new MockBroadcastChannel('workerify');
+    // Replace the constructor to return our mock instance
+    (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
+      () => mockChannel,
+    );
+
     workerify = new Workerify({ logger: false });
+
+    // Mock successful registration
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ clientId: 'test-client' }),
+    });
   });
 
   afterEach(() => {
@@ -80,11 +106,15 @@ describe('Plugin System', () => {
 
       await workerify.register(plugin);
 
-      // Verify routes were added by checking the internal routes array
-      const routes = (workerify as any).routes;
+      // Verify routes were added by triggering route update
+      workerify.updateRoutes();
+
+      const routes = mockChannel.getRoutes();
       expect(routes).toHaveLength(2);
       expect(routes[0].path).toBe('/plugin/test');
+      expect(routes[0].method).toBe('GET');
       expect(routes[1].path).toBe('/plugin/data');
+      expect(routes[1].method).toBe('POST');
     });
 
     it('should allow plugins to register middleware-like functionality', async () => {
@@ -93,11 +123,14 @@ describe('Plugin System', () => {
       const plugin: WorkerifyPlugin = (app) => {
         // Simulate middleware by wrapping existing route handlers
         const originalGet = app.get.bind(app);
-        app.get = (path: string, handler: any) => {
-          return originalGet(path, (req: any, reply: any) => {
-            middlewareExecuted = true;
-            return handler(req, reply);
-          });
+        app.get = (path: string, handler: RouteHandler) => {
+          return originalGet(
+            path,
+            (req: WorkerifyRequest, reply: WorkerifyReply) => {
+              middlewareExecuted = true;
+              return handler(req, reply);
+            },
+          );
         };
       };
 
@@ -143,7 +176,10 @@ describe('Plugin System', () => {
       expect(plugin2).toHaveBeenCalled();
       expect(plugin3).toHaveBeenCalled();
 
-      const routes = (workerify as any).routes;
+      // Verify routes were added by triggering route update
+      workerify.updateRoutes();
+
+      const routes = mockChannel.getRoutes();
       expect(routes).toHaveLength(3);
     });
   });
@@ -180,7 +216,10 @@ describe('Plugin System', () => {
 
       expect(plugin).toHaveBeenCalledWith(workerify, options);
 
-      const routes = (workerify as any).routes;
+      // Verify routes were added by triggering route update
+      workerify.updateRoutes();
+
+      const routes = mockChannel.getRoutes();
       expect(routes).toHaveLength(2);
       expect(routes[0].path).toBe('/api/v1/users');
       expect(routes[1].path).toBe('/api/v1/posts');
@@ -224,7 +263,10 @@ describe('Plugin System', () => {
 
       expect(result).toBe(workerify);
 
-      const routes = (workerify as any).routes;
+      // Verify routes were added by triggering route update
+      workerify.updateRoutes();
+
+      const routes = mockChannel.getRoutes();
       expect(routes).toHaveLength(2);
     });
   });
@@ -257,7 +299,10 @@ describe('Plugin System', () => {
         methods: ['GET', 'POST'],
       });
 
-      const routes = (workerify as any).routes;
+      // Verify route was added by triggering route update
+      workerify.updateRoutes();
+
+      const routes = mockChannel.getRoutes();
       expect(routes).toHaveLength(1);
       expect(routes[0].path).toBe('/');
       expect(routes[0].match).toBe('prefix');
@@ -278,7 +323,10 @@ describe('Plugin System', () => {
 
       await workerify.register(loggingPlugin);
 
-      const routes = (workerify as any).routes;
+      // Verify route was added by triggering route update
+      workerify.updateRoutes();
+
+      const routes = mockChannel.getRoutes();
       expect(routes).toHaveLength(1);
       expect(routes[0].path).toBe('/logged/');
       expect(routes[0].match).toBe('prefix');
@@ -318,7 +366,10 @@ describe('Plugin System', () => {
         protected: ['/admin', '/profile'],
       });
 
-      const routes = (workerify as any).routes;
+      // Verify routes were added by triggering route update
+      workerify.updateRoutes();
+
+      const routes = mockChannel.getRoutes();
       expect(routes).toHaveLength(3); // login + 2 protected routes
       expect(routes[0].path).toBe('/auth/login');
       expect(routes[1].path).toBe('/admin');

@@ -152,7 +152,7 @@ describe('Workerify Vite Plugin', () => {
         'Content-Type',
         'application/javascript',
       );
-      expect(res.end).toHaveBeenCalledWith(expect.any(String));
+      expect(res.end).toHaveBeenCalledWith(expect.stringMatching(/.+/));
     });
 
     it('should not serve SW at wrong base path', async () => {
@@ -224,7 +224,7 @@ describe('Workerify Vite Plugin', () => {
         'Content-Type',
         'application/javascript',
       );
-      expect(res.end).toHaveBeenCalledWith(expect.any(String));
+      expect(res.end).toHaveBeenCalledWith(expect.stringMatching(/.+/));
     });
 
     it('should pass through non-SW requests', async () => {
@@ -257,7 +257,7 @@ describe('Workerify Vite Plugin', () => {
         'Content-Type',
         'application/javascript',
       );
-      expect(res.end).toHaveBeenCalledWith(expect.any(String));
+      expect(res.end).toHaveBeenCalledWith(expect.stringMatching(/.+/));
     });
 
     it('should handle requests with query parameters', async () => {
@@ -287,7 +287,7 @@ describe('Workerify Vite Plugin', () => {
       expect(mockContext.emitFile).toHaveBeenCalledWith({
         type: 'asset',
         fileName: 'build-sw.js',
-        source: expect.any(String),
+        source: expect.stringMatching(/.+/),
       });
     });
 
@@ -299,7 +299,7 @@ describe('Workerify Vite Plugin', () => {
       expect(mockContext.emitFile).toHaveBeenCalledWith({
         type: 'asset',
         fileName: 'workerify-sw.js',
-        source: expect.any(String),
+        source: expect.stringMatching(/.+/),
       });
     });
 

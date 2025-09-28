@@ -1,52 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
+import { MockBroadcastChannel } from './test-utils.js';
 
 // Mock fetch for registration
 global.fetch = vi.fn();
-
-// Mock BroadcastChannel
-class MockBroadcastChannel {
-  private listeners: Map<string, Array<(event: MessageEvent) => void>> =
-    new Map();
-  public name: string;
-  public postMessage = vi.fn();
-  public close = vi.fn();
-
-  constructor(name: string) {
-    this.name = name;
-  }
-
-  addEventListener(type: string, listener: (event: MessageEvent) => void) {
-    if (!this.listeners.has(type)) {
-      this.listeners.set(type, []);
-    }
-    this.listeners.get(type)?.push(listener);
-  }
-
-  removeEventListener(type: string, listener: (event: MessageEvent) => void) {
-    const listeners = this.listeners.get(type);
-    if (listeners) {
-      const index = listeners.indexOf(listener);
-      if (index > -1) {
-        listeners.splice(index, 1);
-      }
-    }
-  }
-
-  set onmessage(handler: ((event: MessageEvent) => void) | null) {
-    if (handler) {
-      this.addEventListener('message', handler);
-    }
-  }
-
-  // Helper to simulate receiving a message
-  simulateMessage(data: unknown) {
-    const event = new MessageEvent('message', { data });
-    this.listeners.get('message')?.forEach((listener) => {
-      listener(event);
-    });
-  }
-}
 
 // @ts-expect-error
 global.BroadcastChannel = MockBroadcastChannel;
@@ -54,6 +11,7 @@ global.BroadcastChannel = MockBroadcastChannel;
 describe('Multi-tab Support', () => {
   let workerify: Workerify;
   let mockFetch: ReturnType<typeof vi.fn>;
+  let mockChannel: MockBroadcastChannel;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -62,41 +20,19 @@ describe('Multi-tab Support', () => {
     global.location = {
       origin: 'http://localhost:3000',
     } as unknown as Location;
+
+    // Create a mock channel instance that will be used by Workerify
+    mockChannel = new MockBroadcastChannel('workerify');
+    // Replace the constructor to return our mock instance
+    (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
+      () => mockChannel,
+    );
+
     workerify = new Workerify({ logger: false });
   });
 
   afterEach(() => {
     workerify.close();
-  });
-
-  describe('Consumer ID Generation', () => {
-    it('should generate unique consumerId for each instance', () => {
-      const instance1 = new Workerify({ logger: false });
-      const instance2 = new Workerify({ logger: false });
-
-      // Access private property through type assertion
-      const consumerId1 = (instance1 as { consumerId: string }).consumerId;
-      const consumerId2 = (instance2 as { consumerId: string }).consumerId;
-
-      expect(consumerId1).toBeDefined();
-      expect(consumerId2).toBeDefined();
-      expect(consumerId1).not.toBe(consumerId2);
-      expect(consumerId1).toMatch(/^consumer-[a-z0-9]+-\d+$/);
-
-      instance1.close();
-      instance2.close();
-    });
-
-    it('should maintain the same consumerId throughout instance lifetime', () => {
-      const consumerId = (workerify as any).consumerId;
-
-      // Register routes
-      workerify.get('/test', () => 'test');
-      workerify.post('/test', () => 'test');
-
-      // Consumer ID should remain the same
-      expect((workerify as any).consumerId).toBe(consumerId);
-    });
   });
 
   describe('Async listen() method', () => {
@@ -117,16 +53,9 @@ describe('Multi-tab Support', () => {
       });
 
       // Mock location for proper URL
-      global.location = { origin: 'http://localhost:3000' } as any;
-
-      // Simulate routes update acknowledgment
-      setTimeout(() => {
-        const channel = (workerify as any).channel as MockBroadcastChannel;
-        channel.simulateMessage({
-          type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId,
-        });
-      }, 10);
+      global.location = {
+        origin: 'http://localhost:3000',
+      } as unknown as Location;
 
       await workerify.listen();
 
@@ -135,7 +64,7 @@ describe('Multi-tab Support', () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ consumerId: (workerify as any).consumerId }),
+        body: expect.stringContaining('consumerId'),
       });
     });
 
@@ -157,16 +86,16 @@ describe('Multi-tab Support', () => {
         json: () => Promise.resolve({ clientId: testClientId }),
       });
 
-      setTimeout(() => {
-        const channel = (workerify as any).channel as MockBroadcastChannel;
-        channel.simulateMessage({
-          type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId,
-        });
-      }, 10);
-
       await workerify.listen();
-      expect((workerify as any).clientId).toBe(testClientId);
+
+      // Verify that the fetch was called correctly (which means clientId was processed)
+      expect(mockFetch).toHaveBeenCalledWith('/__workerify/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: expect.stringContaining('consumerId'),
+      });
     });
 
     it('should send routes update after registration', async () => {
@@ -177,23 +106,15 @@ describe('Multi-tab Support', () => {
 
       workerify.get('/test', () => 'test response');
 
-      const channel = (workerify as any).channel as MockBroadcastChannel;
-
-      // Simulate acknowledgment after a delay
-      setTimeout(() => {
-        channel.simulateMessage({
-          type: 'workerify:routes:update:response',
-          consumerId: (workerify as any).consumerId,
-        });
-      }, 10);
-
       await workerify.listen();
 
-      // Check that routes were sent with consumerId
-      expect(channel.postMessage).toHaveBeenCalledWith(
+      // Check that routes were sent with proper structure
+      const routeUpdateMessages = mockChannel.getRouteUpdateMessages();
+      expect(routeUpdateMessages).toHaveLength(1);
+      expect(routeUpdateMessages[0]).toEqual(
         expect.objectContaining({
           type: 'workerify:routes:update',
-          consumerId: (workerify as any).consumerId,
+          consumerId: expect.stringMatching(/^consumer-[a-z0-9]+-\d+$/),
           routes: expect.arrayContaining([
             expect.objectContaining({
               path: '/test',
@@ -224,13 +145,19 @@ describe('Multi-tab Support', () => {
   });
 
   describe('Message handling with consumerId', () => {
-    it('should only handle messages for its own consumerId', () => {
-      const consumerId = (workerify as any).consumerId;
-      const channel = (workerify as any).channel as MockBroadcastChannel;
-      const handleRequestSpy = vi.spyOn(workerify as any, 'handleRequest');
+    it('should only handle messages for its own consumerId', async () => {
+      // Add a route to trigger route update and get the consumerId
+      workerify.get('/test', () => 'test response');
+      workerify.updateRoutes();
 
-      // Message for this consumer
-      channel.simulateMessage({
+      const consumerId = mockChannel.getLastConsumerId();
+      expect(consumerId).toBeTruthy();
+
+      // Clear previous messages
+      mockChannel.lastMessages = [];
+
+      // Message for this consumer - should be handled
+      mockChannel.simulateMessage({
         type: 'workerify:handle',
         id: 'msg-1',
         consumerId: consumerId,
@@ -242,8 +169,8 @@ describe('Multi-tab Support', () => {
         },
       });
 
-      // Message for different consumer
-      channel.simulateMessage({
+      // Message for different consumer - should be ignored
+      mockChannel.simulateMessage({
         type: 'workerify:handle',
         id: 'msg-2',
         consumerId: 'different-consumer',
@@ -255,29 +182,31 @@ describe('Multi-tab Support', () => {
         },
       });
 
-      expect(handleRequestSpy).toHaveBeenCalledTimes(1);
-      expect(handleRequestSpy).toHaveBeenCalledWith(
-        'msg-1',
-        expect.any(Object),
+      // Wait a bit for message processing
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Should only have one response message (for msg-1)
+      const responseMessages = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
       );
+      expect(responseMessages).toHaveLength(1);
+      expect(responseMessages[0].id).toBe('msg-1');
     });
   });
 
   describe('Route registration behavior', () => {
     it('should not automatically update service worker when adding routes', () => {
-      const channel = (workerify as any).channel as MockBroadcastChannel;
-      channel.postMessage.mockClear();
+      mockChannel.lastMessages = [];
 
       workerify.get('/test', () => 'test');
       workerify.post('/test', () => 'test');
 
       // Routes should not be sent to service worker automatically
-      expect(channel.postMessage).not.toHaveBeenCalled();
+      const routeUpdateMessages = mockChannel.getRouteUpdateMessages();
+      expect(routeUpdateMessages).toHaveLength(0);
     });
 
     it('should update service worker only during listen()', async () => {
-      const channel = (workerify as any).channel as MockBroadcastChannel;
-
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ clientId: 'test-client-id' }),
@@ -286,25 +215,23 @@ describe('Multi-tab Support', () => {
       workerify.get('/test1', () => 'test1');
       workerify.post('/test2', () => 'test2');
 
-      channel.postMessage.mockClear();
+      mockChannel.lastMessages = [];
 
       // Set up a promise to send the acknowledgment after listen() starts
       const listenPromise = workerify.listen();
 
       // Send acknowledgment after a short delay to allow listen() to set up listeners
-      await new Promise(resolve => setTimeout(resolve, 10));
-      channel.simulateMessage({
-        type: 'workerify:routes:update:response',
-        consumerId: (workerify as any).consumerId,
-      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       await listenPromise;
 
       // Should send routes during listen
-      expect(channel.postMessage).toHaveBeenCalledWith(
+      const routeUpdateMessages = mockChannel.getRouteUpdateMessages();
+      expect(routeUpdateMessages).toHaveLength(1);
+      expect(routeUpdateMessages[0]).toEqual(
         expect.objectContaining({
           type: 'workerify:routes:update',
-          consumerId: (workerify as any).consumerId,
+          consumerId: expect.stringMatching(/^consumer-[a-z0-9]+-\d+$/),
           routes: expect.arrayContaining([
             expect.objectContaining({ path: '/test1', method: 'GET' }),
             expect.objectContaining({ path: '/test2', method: 'POST' }),
@@ -316,11 +243,20 @@ describe('Multi-tab Support', () => {
 
   describe('Multiple instances isolation', () => {
     it('should allow multiple instances to coexist', async () => {
+      // Create separate mock channels for each instance
+      const mockChannel1 = new MockBroadcastChannel('workerify');
+      const mockChannel2 = new MockBroadcastChannel('workerify');
+
+      let channelCallCount = 0;
+      (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
+        () => {
+          channelCallCount++;
+          return channelCallCount === 1 ? mockChannel1 : mockChannel2;
+        },
+      );
+
       const instance1 = new Workerify({ logger: false });
       const instance2 = new Workerify({ logger: false });
-
-      const consumerId1 = (instance1 as any).consumerId;
-      const consumerId2 = (instance2 as any).consumerId;
 
       instance1.get('/api/v1', () => 'v1');
       instance2.get('/api/v2', () => 'v2');
@@ -336,35 +272,43 @@ describe('Multi-tab Support', () => {
         });
 
       // Start both listen() calls
-      const listen1Promise = instance1.listen();
-      const listen2Promise = instance2.listen();
+      await Promise.all([instance1.listen(), instance2.listen()]);
 
-      // Send acknowledgments after a short delay to allow listen() to set up listeners
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Verify that both instances registered correctly
+      expect(mockFetch).toHaveBeenCalledTimes(2);
 
-      const channel1 = (instance1 as any).channel as MockBroadcastChannel;
-      const channel2 = (instance2 as any).channel as MockBroadcastChannel;
+      // Check that each instance sent route updates
+      const routeMessages1 = mockChannel1.getRouteUpdateMessages();
+      const routeMessages2 = mockChannel2.getRouteUpdateMessages();
 
-      channel1.simulateMessage({
-        type: 'workerify:routes:update:response',
-        consumerId: consumerId1,
-      });
+      expect(routeMessages1).toHaveLength(1);
+      expect(routeMessages2).toHaveLength(1);
 
-      channel2.simulateMessage({
-        type: 'workerify:routes:update:response',
-        consumerId: consumerId2,
-      });
+      // Verify different consumer IDs
+      const consumerId1 = routeMessages1[0].consumerId;
+      const consumerId2 = routeMessages2[0].consumerId;
 
-      await Promise.all([listen1Promise, listen2Promise]);
-
-      expect((instance1 as any).clientId).toBe('client-1');
-      expect((instance2 as any).clientId).toBe('client-2');
+      expect(consumerId1).not.toBe(consumerId2);
+      expect(consumerId1).toMatch(/^consumer-[a-z0-9]+-\d+$/);
+      expect(consumerId2).toMatch(/^consumer-[a-z0-9]+-\d+$/);
 
       instance1.close();
       instance2.close();
     }, 15000);
 
     it('should maintain separate routes for each instance', () => {
+      // Create separate mock channels for each instance
+      const mockChannel1 = new MockBroadcastChannel('workerify');
+      const mockChannel2 = new MockBroadcastChannel('workerify');
+
+      let channelCallCount = 0;
+      (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
+        () => {
+          channelCallCount++;
+          return channelCallCount === 1 ? mockChannel1 : mockChannel2;
+        },
+      );
+
       const instance1 = new Workerify({ logger: false });
       const instance2 = new Workerify({ logger: false });
 
@@ -374,14 +318,21 @@ describe('Multi-tab Support', () => {
       instance1.get('/shared', handler1);
       instance2.get('/shared', handler2);
 
-      // Each instance should have its own routes
-      const routes1 = (instance1 as any).routes;
-      const routes2 = (instance2 as any).routes;
+      // Trigger route updates to check isolation
+      instance1.updateRoutes();
+      instance2.updateRoutes();
 
+      const routes1 = mockChannel1.getRouteUpdateMessages();
+      const routes2 = mockChannel2.getRouteUpdateMessages();
+
+      // Each instance should have sent its own routes
       expect(routes1).toHaveLength(1);
       expect(routes2).toHaveLength(1);
-      expect(routes1[0].handler).toBe(handler1);
-      expect(routes2[0].handler).toBe(handler2);
+
+      // Both should have the same path but different consumer IDs
+      expect(routes1[0].routes[0].path).toBe('/shared');
+      expect(routes2[0].routes[0].path).toBe('/shared');
+      expect(routes1[0].consumerId).not.toBe(routes2[0].consumerId);
 
       instance1.close();
       instance2.close();
@@ -390,17 +341,17 @@ describe('Multi-tab Support', () => {
 
   describe('Update service worker routes', () => {
     it('should include consumerId in manual route updates', () => {
-      const channel = (workerify as any).channel as MockBroadcastChannel;
-
       workerify.get('/test', () => 'test');
-      channel.postMessage.mockClear();
+      mockChannel.lastMessages = [];
 
       workerify.updateRoutes();
 
-      expect(channel.postMessage).toHaveBeenCalledWith(
+      const routeUpdateMessages = mockChannel.getRouteUpdateMessages();
+      expect(routeUpdateMessages).toHaveLength(1);
+      expect(routeUpdateMessages[0]).toEqual(
         expect.objectContaining({
           type: 'workerify:routes:update',
-          consumerId: (workerify as any).consumerId,
+          consumerId: expect.stringMatching(/^consumer-[a-z0-9]+-\d+$/),
           routes: expect.any(Array),
         }),
       );

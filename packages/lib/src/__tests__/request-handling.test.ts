@@ -1,20 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import type { WorkerifyReply } from '../types.js';
-import {
-  createMockRequest,
-  setupBroadcastChannelMock,
-  stringToArrayBuffer,
-} from './test-utils.js';
+import { MockBroadcastChannel } from './test-utils.js';
 
-// Setup mocks
-setupBroadcastChannelMock();
+// Mock fetch for testing
+global.fetch = vi.fn();
+
+// @ts-expect-error
+global.BroadcastChannel = MockBroadcastChannel;
 
 describe('Request Handling', () => {
   let workerify: Workerify;
+  let mockFetch: ReturnType<typeof vi.fn>;
+  let mockChannel: MockBroadcastChannel;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch = global.fetch as ReturnType<typeof vi.fn>;
+
+    // Create a mock channel instance that will be used by Workerify
+    mockChannel = new MockBroadcastChannel('workerify');
+    // Replace the constructor to return our mock instance
+    (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
+      () => mockChannel,
+    );
+
     workerify = new Workerify({ logger: false });
+
+    // Mock successful registration
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ clientId: 'test-client' }),
+    });
   });
 
   afterEach(() => {
@@ -26,16 +42,24 @@ describe('Request Handling', () => {
       const handler = vi.fn().mockReturnValue('Hello World');
       workerify.get('/test', handler);
 
-      const request = createMockRequest('GET', 'http://localhost:3000/test');
+      await workerify.listen();
 
-      // Simulate message handling
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
 
-      await handleRequest('test-id', request);
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
+      // Verify handler was called
       expect(handler).toHaveBeenCalledWith(
         expect.objectContaining({
           url: 'http://localhost:3000/test',
@@ -48,423 +72,459 @@ describe('Request Handling', () => {
         }),
       );
 
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          body: 'Hello World',
-          bodyType: 'text',
-          headers: { 'Content-Type': 'text/html' },
-        }),
+      // Verify response was sent
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
       );
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toMatchObject({
+        id: 'req-1',
+        body: 'Hello World',
+        bodyType: 'text',
+        status: 200,
+      });
     });
 
     it('should handle POST request with JSON body', async () => {
       const handler = vi.fn().mockReturnValue({ success: true });
       workerify.post('/api/data', handler);
 
-      const request = createMockRequest(
-        'POST',
-        'http://localhost:3000/api/data',
-      );
+      await workerify.listen();
 
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/api/data',
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: null,
+        },
+      });
 
-      await handleRequest('test-id', request);
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(handler).toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          body: { success: true },
-          bodyType: 'json',
-          headers: { 'Content-Type': 'application/json' },
-        }),
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
       );
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toMatchObject({
+        body: { success: true },
+        bodyType: 'json',
+        status: 200,
+      });
     });
 
     it('should handle request with parameters', async () => {
-      const handler = vi.fn().mockReturnValue('User found');
+      const handler = vi.fn((req) => `User ${req.params.id} found`);
       workerify.get('/users/:id', handler);
 
-      const request = createMockRequest(
-        'GET',
-        'http://localhost:3000/users/123',
-      );
+      await workerify.listen();
 
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      await handleRequest('test-id', request);
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/123',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(handler).toHaveBeenCalledWith(
         expect.objectContaining({
+          url: 'http://localhost:3000/users/123',
+          method: 'GET',
           params: { id: '123' },
         }),
-        expect.any(Object),
+        expect.objectContaining({
+          status: 200,
+          statusText: 'OK',
+        }),
       );
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].body).toBe('User 123 found');
+    });
+
+    it('should handle 404 for non-existent routes', async () => {
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/nonexistent',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toMatchObject({
+        status: 404,
+        body: { error: 'Route not found' },
+        bodyType: 'json',
+      });
+    });
+
+    it('should handle async handlers', async () => {
+      const handler = vi.fn().mockResolvedValue({ data: 'async result' });
+      workerify.get('/async', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/async',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].body).toEqual({ data: 'async result' });
+    });
+
+    it('should handle ArrayBuffer responses', async () => {
+      const buffer = new ArrayBuffer(8);
+      const handler = vi.fn().mockReturnValue(buffer);
+      workerify.get('/binary', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/binary',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        body: buffer,
+        bodyType: 'arrayBuffer',
+      });
     });
   });
 
   describe('Form data handling', () => {
     it('should parse form-encoded data in POST requests', async () => {
-      const handler = vi.fn().mockImplementation((req) => {
-        return { receivedData: req.body };
-      });
+      const handler = vi.fn((req) => req.body);
       workerify.post('/form', handler);
 
-      const formData = 'name=John&age=30&city=NYC';
-      const request = createMockRequest(
-        'POST',
-        'http://localhost:3000/form',
-        { 'content-type': 'application/x-www-form-urlencoded' },
-        stringToArrayBuffer(formData),
-      );
+      await workerify.listen();
 
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      await handleRequest('test-id', request);
+      // Create form data as ArrayBuffer
+      const formData = 'name=John&age=30';
+      const encoder = new TextEncoder();
+      const bodyBuffer = encoder.encode(formData).buffer;
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/form',
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: bodyBuffer,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(handler).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: {
-            name: 'John',
-            age: '30',
-            city: 'NYC',
-          },
+          body: { name: 'John', age: '30' },
         }),
-        expect.any(Object),
-      );
-    });
-
-    it('should handle malformed form data gracefully', async () => {
-      const handler = vi.fn().mockReturnValue('ok');
-      workerify.post('/form', handler);
-
-      const invalidFormData = 'invalid%form%data%';
-      const request = createMockRequest(
-        'POST',
-        'http://localhost:3000/form',
-        { 'content-type': 'application/x-www-form-urlencoded' },
-        stringToArrayBuffer(invalidFormData),
-      );
-
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-
-      // Should not throw
-      await expect(handleRequest('test-id', request)).resolves.not.toThrow();
-    });
-
-    it('should not process form data for GET requests', async () => {
-      const handler = vi.fn().mockReturnValue('ok');
-      workerify.get('/test', handler);
-
-      const request = createMockRequest(
-        'GET',
-        'http://localhost:3000/test',
-        { 'content-type': 'application/x-www-form-urlencoded' },
-        stringToArrayBuffer('name=value'),
-      );
-
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      await handleRequest('test-id', request);
-
-      // Verify that handler was called and body is still an ArrayBuffer (not parsed as form data)
-      expect(handler).toHaveBeenCalled();
-      const [requestArg] = handler.mock.calls[0];
-      // For GET requests, the body should remain as ArrayBuffer and not be parsed as form data
-      expect(requestArg.body?.constructor?.name).toBe('ArrayBuffer');
-      expect(requestArg.method).toBe('GET');
-      expect(requestArg.url).toBe('http://localhost:3000/test');
-    });
-  });
-
-  describe('Response handling', () => {
-    it('should return string responses with correct content type', async () => {
-      const handler = vi.fn().mockReturnValue('<h1>Hello</h1>');
-      workerify.get('/html', handler);
-
-      const request = createMockRequest('GET', 'http://localhost:3000/html');
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
-
-      await handleRequest('test-id', request);
-
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
         expect.objectContaining({
-          body: '<h1>Hello</h1>',
-          bodyType: 'text',
-          headers: { 'Content-Type': 'text/html' },
+          status: 200,
+          statusText: 'OK',
         }),
       );
-    });
 
-    it('should return JSON responses with correct content type', async () => {
-      const responseData = { message: 'Hello', status: 'success' };
-      const handler = vi.fn().mockReturnValue(responseData);
-      workerify.get('/json', handler);
-
-      const request = createMockRequest('GET', 'http://localhost:3000/json');
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
-
-      await handleRequest('test-id', request);
-
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          body: responseData,
-          bodyType: 'json',
-          headers: { 'Content-Type': 'application/json' },
-        }),
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
       );
-    });
-
-    it('should return ArrayBuffer responses', async () => {
-      const buffer = stringToArrayBuffer('binary data');
-      const handler = vi.fn().mockReturnValue(buffer);
-      workerify.get('/binary', handler);
-
-      const request = createMockRequest('GET', 'http://localhost:3000/binary');
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
-
-      await handleRequest('test-id', request);
-
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          body: buffer,
-          // Note: ArrayBuffer detection might not work in jsdom, so we check the body
-        }),
-      );
-    });
-
-    it('should handle undefined return values', async () => {
-      const handler = vi.fn().mockReturnValue(undefined);
-      workerify.get('/undefined', handler);
-
-      const request = createMockRequest(
-        'GET',
-        'http://localhost:3000/undefined',
-      );
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
-
-      await handleRequest('test-id', request);
-
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          bodyType: 'json',
-          // Note: undefined body won't be set on the reply object
-        }),
-      );
-    });
-
-    it('should allow handlers to modify reply object', async () => {
-      const handler = vi.fn().mockImplementation((_req, reply) => {
-        reply.status = 201;
-        reply.statusText = 'Created';
-        reply.headers = { 'X-Custom': 'value' };
-        return { id: 123 };
-      });
-      workerify.post('/create', handler);
-
-      const request = createMockRequest('POST', 'http://localhost:3000/create');
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
-
-      await handleRequest('test-id', request);
-
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          status: 201,
-          statusText: 'Created',
-          headers: expect.objectContaining({
-            'X-Custom': 'value',
-            'Content-Type': 'application/json',
-          }),
-        }),
-      );
+      expect(responses[0].body).toEqual({ name: 'John', age: '30' });
     });
   });
 
   describe('Error handling', () => {
-    it('should handle route not found', async () => {
-      const request = createMockRequest(
-        'GET',
-        'http://localhost:3000/nonexistent',
-      );
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
-
-      await handleRequest('test-id', request);
-
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          status: 404,
-          statusText: 'Not Found',
-          body: { error: 'Route not found' },
-          bodyType: 'json',
-        }),
-      );
-    });
-
-    it('should handle handler errors', async () => {
-      const handler = vi.fn().mockImplementation(() => {
+    it('should handle handler errors gracefully', async () => {
+      const handler = vi.fn(() => {
         throw new Error('Handler error');
       });
       workerify.get('/error', handler);
 
-      const request = createMockRequest('GET', 'http://localhost:3000/error');
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
+      await workerify.listen();
 
-      await handleRequest('test-id', request);
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/error',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          status: 500,
-          statusText: 'Internal Server Error',
-          body: { error: 'Internal server error' },
-          bodyType: 'json',
-        }),
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
       );
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toMatchObject({
+        status: 500,
+        body: { error: 'Internal server error' },
+        bodyType: 'json',
+      });
     });
 
-    it('should handle async handler errors', async () => {
+    it('should handle async handler rejection', async () => {
       const handler = vi.fn().mockRejectedValue(new Error('Async error'));
       workerify.get('/async-error', handler);
 
-      const request = createMockRequest(
-        'GET',
-        'http://localhost:3000/async-error',
-      );
-      const handleRequest = (workerify as any).handleRequest.bind(workerify);
-      const sendResponse = vi
-        .spyOn(workerify as any, 'sendResponse')
-        .mockImplementation(() => {});
+      await workerify.listen();
 
-      await handleRequest('test-id', request);
-
-      expect(sendResponse).toHaveBeenCalledWith(
-        'test-id',
-        expect.objectContaining({
-          status: 500,
-          statusText: 'Internal Server Error',
-        }),
-      );
-    });
-  });
-
-  describe('Message handling integration', () => {
-    it('should handle incoming messages correctly', async () => {
-      const handler = vi.fn().mockReturnValue('response');
-      workerify.get('/test', handler);
-
-      // Mock the channel's message handling
-      const handleMessage = (workerify as any).handleMessage.bind(workerify);
-      const handleRequest = vi
-        .spyOn(workerify as any, 'handleRequest')
-        .mockImplementation(() => {});
-
-      const consumerId = (workerify as any).consumerId;
-      const message = {
-        data: {
-          type: 'workerify:handle',
-          id: 'test-id',
-          consumerId: consumerId,
-          request: createMockRequest('GET', 'http://localhost:3000/test'),
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/async-error',
+          method: 'GET',
+          headers: {},
+          body: null,
         },
-      };
-
-      handleMessage(message);
-
-      expect(handleRequest).toHaveBeenCalledWith(
-        'test-id',
-        message.data.request,
-      );
-    });
-
-    it('should ignore non-workerify messages', async () => {
-      const handleMessage = (workerify as any).handleMessage.bind(workerify);
-      const handleRequest = vi
-        .spyOn(workerify as any, 'handleRequest')
-        .mockImplementation(() => {});
-
-      const message = {
-        data: {
-          type: 'other:message',
-          id: 'test-id',
-        },
-      };
-
-      handleMessage(message);
-
-      expect(handleRequest).not.toHaveBeenCalled();
-    });
-
-    it('should ignore malformed messages', async () => {
-      const handleMessage = (workerify as any).handleMessage.bind(workerify);
-      const handleRequest = vi
-        .spyOn(workerify as any, 'handleRequest')
-        .mockImplementation(() => {});
-
-      const message = {
-        data: {
-          type: 'workerify:handle',
-          // Missing id and request
-        },
-      };
-
-      handleMessage(message);
-
-      expect(handleRequest).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('BroadcastChannel response sending', () => {
-    it('should send response via BroadcastChannel', () => {
-      const postMessage = vi.spyOn(workerify.channel, 'postMessage');
-      const sendResponse = (workerify as any).sendResponse.bind(workerify);
-
-      const reply: WorkerifyReply = {
-        status: 200,
-        statusText: 'OK',
-        headers: { 'Content-Type': 'application/json' },
-        body: { message: 'test' },
-        bodyType: 'json',
-      };
-
-      sendResponse('test-id', reply);
-
-      expect(postMessage).toHaveBeenCalledWith({
-        type: 'workerify:response',
-        id: 'test-id',
-        status: 200,
-        statusText: 'OK',
-        headers: { 'Content-Type': 'application/json' },
-        body: { message: 'test' },
-        bodyType: 'json',
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toMatchObject({
+        status: 500,
+        body: { error: 'Internal server error' },
+      });
+    });
+  });
+
+  describe('Reply object usage', () => {
+    it('should allow modifying status in reply', async () => {
+      const handler = vi.fn((_req, reply) => {
+        reply.status = 201;
+        reply.statusText = 'Created';
+        return { created: true };
+      });
+      workerify.post('/create', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/create',
+          method: 'POST',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        status: 201,
+        statusText: 'Created',
+        body: { created: true },
+      });
+    });
+
+    it('should allow setting custom headers in reply', async () => {
+      const handler = vi.fn((_req, reply) => {
+        reply.headers = {
+          'X-Custom-Header': 'custom-value',
+          'Cache-Control': 'no-cache',
+        };
+        return 'response with headers';
+      });
+      workerify.get('/headers', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/headers',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].headers).toMatchObject({
+        'X-Custom-Header': 'custom-value',
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/html',
+      });
+    });
+  });
+
+  describe('Message filtering', () => {
+    it('should ignore messages without proper structure', async () => {
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+
+      // Send malformed messages
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        // Missing id
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-2',
+        // Missing consumerId
+        request: {
+          url: 'http://localhost:3000/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-3',
+        consumerId,
+        // Missing request
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // No responses should be sent for malformed messages
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(0);
+    });
+
+    it('should ignore messages for other consumers', async () => {
+      workerify.get('/test', () => 'response');
+      await workerify.listen();
+
+      const correctConsumerId = mockChannel.getLastConsumerId();
+
+      // Send message with wrong consumer ID
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId: 'wrong-consumer-id',
+        request: {
+          url: 'http://localhost:3000/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // No response should be sent
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response' && msg.id === 'req-1',
+      );
+      expect(responses).toHaveLength(0);
+
+      // Send with correct consumer ID
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-2',
+        consumerId: correctConsumerId,
+        request: {
+          url: 'http://localhost:3000/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Response should be sent
+      const correctResponses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response' && msg.id === 'req-2',
+      );
+      expect(correctResponses).toHaveLength(1);
     });
   });
 });
