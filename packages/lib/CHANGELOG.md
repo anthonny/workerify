@@ -1,5 +1,11 @@
 # @workerify/lib
 
+## 0.1.3
+
+### Patch Changes
+
+- Improve initialization and manage state in SW
+
 ## 0.1.2
 
 ### Patch Changes

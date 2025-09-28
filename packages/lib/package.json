@@ -1,6 +1,6 @@
 {
   "name": "@workerify/lib",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Fastify-like router for Service Workers",
   "type": "module",
   "main": "./dist/index.js",
