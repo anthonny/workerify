@@ -27,6 +27,15 @@ export interface WorkerifyPluginOptions {
   swFileName?: string;
 }
 
+export type {
+  ExtendableEvent,
+  FetchEvent,
+  Route,
+  ServiceWorkerGlobalScope,
+} from './service-worker';
+// Re-export service worker functions for manual usage
+export { init } from './service-worker';
+
 export default function workerifyPlugin(
   opts: WorkerifyPluginOptions = {},
 ): Plugin {
