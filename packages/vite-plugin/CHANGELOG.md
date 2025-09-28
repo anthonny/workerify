@@ -1,5 +1,11 @@
 # @workerify/vite-plugin
 
+## 0.1.4
+
+### Patch Changes
+
+- Fix encoding on url, rework SW to prepare usage with VitePWA
+
 ## 0.1.3
 
 ### Patch Changes
