@@ -7,11 +7,15 @@ export type HttpMethod =
   | 'HEAD'
   | 'OPTIONS';
 
+// Shared body type for consistent typing across packages
+export type WorkerifyBody = ArrayBuffer | string | null | object;
+export type BodyType = 'json' | 'text' | 'arrayBuffer';
+
 export interface WorkerifyRequest {
   url: string;
   method: HttpMethod;
   headers: Record<string, string>;
-  body?: ArrayBuffer | null;
+  body?: WorkerifyBody;
   params: Record<string, string>;
 }
 
@@ -19,14 +23,14 @@ export interface WorkerifyReply {
   status?: number;
   statusText?: string;
   headers?: Record<string, string>;
-  body?: any;
-  bodyType?: 'json' | 'text' | 'arrayBuffer';
+  body?: WorkerifyBody;
+  bodyType?: BodyType;
 }
 
 export type RouteHandler = (
   request: WorkerifyRequest,
   reply: WorkerifyReply,
-) => Promise<any> | any;
+) => Promise<WorkerifyBody | undefined> | WorkerifyBody | undefined;
 
 export interface Route {
   method?: HttpMethod;
@@ -54,11 +58,11 @@ export interface BroadcastMessage {
   status?: number;
   statusText?: string;
   headers?: Record<string, string>;
-  body?: any;
-  bodyType?: 'json' | 'text' | 'arrayBuffer';
+  body?: WorkerifyBody;
+  bodyType?: BodyType;
 }
 
 export type WorkerifyPlugin = (
-  instance: any,
-  options?: any,
+  instance: object,
+  options?: Record<string, unknown>,
 ) => Promise<void> | void;

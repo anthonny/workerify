@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRegisterModule } from '../generated/register-template.js';
+import { getRegisterModule } from '../generated/register-template';
 import { isValidJavaScript } from './test-utils.js';
 
 describe('Virtual Module - Workerify Register', () => {

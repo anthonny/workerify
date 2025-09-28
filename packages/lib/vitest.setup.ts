@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 // Global mocks
 global.fetch = vi.fn();
-global.location = { origin: 'http://localhost:3000' } as any;
+global.location = { origin: 'http://localhost:3000' } as unknown as Location;
 
 // Mock BroadcastChannel
 class MockBroadcastChannel {
@@ -53,9 +53,14 @@ beforeEach(() => {
 
   // Auto-acknowledge route updates to prevent timeouts
   setTimeout(() => {
-    const channels = (global as any).mockChannels || [];
-    channels.forEach((channel: any) => {
-      if (channel && channel.simulateMessage) {
+    const channels =
+      (
+        global as {
+          mockChannels?: Array<{ simulateMessage?: (data: unknown) => void }>;
+        }
+      ).mockChannels || [];
+    channels.forEach((channel) => {
+      if (channel?.simulateMessage) {
         channel.simulateMessage({
           type: 'workerify:routes:update:response',
           consumerId: 'test-consumer-id',

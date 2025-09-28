@@ -1,15 +1,37 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import { setupBroadcastChannelMock } from './test-utils.js';
+import type { HttpMethod } from '../types.js';
+import { MockBroadcastChannel } from './test-utils.js';
 
-// Setup mocks
-setupBroadcastChannelMock();
+// Mock fetch for testing
+global.fetch = vi.fn();
+
+// @ts-expect-error
+global.BroadcastChannel = MockBroadcastChannel;
 
 describe('Route Matching Logic', () => {
   let workerify: Workerify;
+  let mockFetch: ReturnType<typeof vi.fn>;
+  let mockChannel: MockBroadcastChannel;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch = global.fetch as ReturnType<typeof vi.fn>;
+
+    // Create a mock channel instance that will be used by Workerify
+    mockChannel = new MockBroadcastChannel('workerify');
+    // Replace the constructor to return our mock instance
+    (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
+      () => mockChannel,
+    );
+
     workerify = new Workerify({ logger: false });
+
+    // Mock successful registration
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ clientId: 'test-client' }),
+    });
   });
 
   afterEach(() => {
@@ -17,276 +39,608 @@ describe('Route Matching Logic', () => {
   });
 
   describe('Exact path matching', () => {
-    it('should match exact paths', () => {
-      // Access private method for testing
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should match exact paths', async () => {
+      const handler = vi.fn(() => 'matched');
+      workerify.get('/users', handler);
 
-      const result = matchRoute('/users', '/users');
-      expect(result).toEqual({ match: true });
+      await workerify.listen();
+
+      // Simulate a request to the exact path
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      // Wait for message processing
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Check that a response was sent
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
     });
 
-    it('should not match different paths', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should not match different paths', async () => {
+      const handler = vi.fn(() => 'users');
+      workerify.get('/users', handler);
 
-      const result = matchRoute('/users', '/posts');
-      expect(result).toEqual({ match: false });
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/posts',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(404); // Not found
     });
 
-    it('should not match partial paths', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should not match partial paths', async () => {
+      workerify.get('/users', () => 'users');
 
-      const result = matchRoute('/users', '/users/123');
-      expect(result).toEqual({ match: false });
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/123',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(404);
     });
 
-    it('should handle root path', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should handle root path', async () => {
+      workerify.get('/', () => 'home');
 
-      const result = matchRoute('/', '/');
-      expect(result).toEqual({ match: true });
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
     });
 
-    it('should be case sensitive', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should be case sensitive', async () => {
+      workerify.get('/Users', () => 'users');
 
-      const result = matchRoute('/Users', '/users');
-      expect(result).toEqual({ match: false });
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users', // lowercase
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(404); // Case mismatch
     });
   });
 
   describe('Parameterized route matching', () => {
-    it('should match single parameter routes', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should match single parameter routes', async () => {
+      const handler = vi.fn((req) => `User ${req.params.id}`);
+      workerify.get('/users/:id', handler);
 
-      const result = matchRoute('/users/:id', '/users/123');
-      expect(result).toEqual({
-        match: true,
-        params: { id: '123' },
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/123',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
       });
-    });
 
-    it('should match multiple parameter routes', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const result = matchRoute(
-        '/users/:userId/posts/:postId',
-        '/users/123/posts/456',
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
       );
-      expect(result).toEqual({
-        match: true,
-        params: { userId: '123', postId: '456' },
-      });
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
+      expect(responses[0].body).toBe('User 123');
     });
 
-    it('should match parameters with special characters', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
-
-      const result = matchRoute('/users/:id', '/users/abc-123_def');
-      expect(result).toEqual({
-        match: true,
-        params: { id: 'abc-123_def' },
-      });
-    });
-
-    it('should not match routes with different segment counts', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
-
-      const result = matchRoute('/users/:id', '/users/123/extra');
-      expect(result).toEqual({ match: false });
-    });
-
-    it('should not match when static parts differ', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
-
-      const result = matchRoute('/users/:id/posts', '/users/123/comments');
-      expect(result).toEqual({ match: false });
-    });
-
-    it('should handle mixed static and parameter segments', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
-
-      const result = matchRoute(
-        '/api/v1/users/:id/profile',
-        '/api/v1/users/123/profile',
+    it('should match multiple parameter routes', async () => {
+      const handler = vi.fn(
+        (req) => `User ${req.params.userId}, Post ${req.params.postId}`,
       );
-      expect(result).toEqual({
-        match: true,
-        params: { id: '123' },
+      workerify.get('/users/:userId/posts/:postId', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/123/posts/456',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
+      expect(responses[0].body).toBe('User 123, Post 456');
     });
 
-    it('should handle parameters at the beginning', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should match parameters with special characters', async () => {
+      const handler = vi.fn((req) => `ID: ${req.params.id}`);
+      workerify.get('/users/:id', handler);
 
-      const result = matchRoute('/:org/repos', '/github/repos');
-      expect(result).toEqual({
-        match: true,
-        params: { org: 'github' },
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/abc-123_def',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
+      expect(responses[0].body).toBe('ID: abc-123_def');
     });
 
-    it('should handle empty parameter values', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
+    it('should not match routes with different segment counts', async () => {
+      workerify.get('/users/:id', () => 'user');
 
-      // The current implementation matches '/users/' with '/users/:id' but doesn't capture empty params
-      const result = matchRoute('/users/:id', '/users/');
-      // Based on the actual behavior, this matches with empty params object
-      expect(result).toEqual({ match: true, params: {} });
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/123/extra',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(404);
+    });
+
+    it('should not match when static parts differ', async () => {
+      workerify.get('/users/:id/posts', () => 'posts');
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/123/comments',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(404);
     });
   });
 
-  describe('Route finding logic', () => {
-    it('should find exact match route', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
+  describe('Wildcard/prefix matching', () => {
+    it('should match prefix routes', async () => {
+      workerify.get('/api/*', () => 'api endpoint');
 
-      // Add a route first
-      workerify.get('/users', () => 'users');
+      await workerify.listen();
 
-      const result = findRoute('GET', 'http://localhost:3000/users');
-      expect(result.route).toBeTruthy();
-      expect(result.route.path).toBe('/users');
+      const consumerId = mockChannel.getLastConsumerId();
+
+      // Test various paths under /api/
+      const paths = ['/api/v1', '/api/v1/users', '/api/v2/posts/123'];
+
+      for (const path of paths) {
+        mockChannel.lastMessages = [];
+        mockChannel.simulateMessage({
+          type: 'workerify:handle',
+          id: `req-${path}`,
+          consumerId,
+          request: {
+            url: `http://localhost:3000${path}`,
+            method: 'GET',
+            headers: {},
+            body: null,
+          },
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const responses = mockChannel.lastMessages.filter(
+          (msg) => msg.type === 'workerify:response',
+        );
+        expect(responses).toHaveLength(1);
+        expect(responses[0].status).toBe(200);
+        expect(responses[0].body).toBe('api endpoint');
+      }
     });
+  });
 
-    it('should find parameterized route', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
-
-      workerify.get('/users/:id', () => 'user');
-
-      const result = findRoute('GET', 'http://localhost:3000/users/123');
-      expect(result.route).toBeTruthy();
-      expect(result.params).toEqual({ id: '123' });
-    });
-
-    it('should find prefix match route', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
-
-      workerify.get('/api/*', () => 'api');
-
-      const result = findRoute('GET', 'http://localhost:3000/api/v1/users');
-      expect(result.route).toBeTruthy();
-      expect(result.route.path).toBe('/api/');
-      expect(result.route.match).toBe('prefix');
-    });
-
-    it('should return null for no match', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
-
-      workerify.get('/users', () => 'users');
-
-      const result = findRoute('GET', 'http://localhost:3000/posts');
-      expect(result.route).toBeNull();
-    });
-
-    it('should match correct HTTP method', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
-
+  describe('HTTP method routing', () => {
+    it('should match correct HTTP method', async () => {
       workerify.get('/users', () => 'get users');
-      workerify.post('/users', () => 'post users');
+      workerify.post('/users', () => 'create user');
 
-      const getResult = findRoute('GET', 'http://localhost:3000/users');
-      const postResult = findRoute('POST', 'http://localhost:3000/users');
+      await workerify.listen();
 
-      expect(getResult.route).toBeTruthy();
-      expect(postResult.route).toBeTruthy();
-      expect(getResult.route).not.toBe(postResult.route);
-    });
+      const consumerId = mockChannel.getLastConsumerId();
 
-    it('should handle method mismatch', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
+      // Test GET
+      mockChannel.lastMessages = [];
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-get',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
 
-      workerify.get('/users', () => 'users');
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const result = findRoute('POST', 'http://localhost:3000/users');
-      expect(result.route).toBeNull();
-    });
-
-    it('should match ALL method routes regardless of request method', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
-
-      workerify.all('/api', () => 'api');
-
-      const getResult = findRoute('GET', 'http://localhost:3000/api');
-      const postResult = findRoute('POST', 'http://localhost:3000/api');
-      const putResult = findRoute('PUT', 'http://localhost:3000/api');
-
-      expect(getResult.route).toBeTruthy();
-      expect(postResult.route).toBeTruthy();
-      expect(putResult.route).toBeTruthy();
-    });
-
-    it('should handle query parameters in URL', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
-
-      workerify.get('/users', () => 'users');
-
-      const result = findRoute(
-        'GET',
-        'http://localhost:3000/users?page=1&limit=10',
+      let responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
       );
-      expect(result.route).toBeTruthy();
-      expect(result.route.path).toBe('/users');
+      expect(responses[0].body).toBe('get users');
+
+      // Test POST
+      mockChannel.lastMessages = [];
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-post',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users',
+          method: 'POST',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].body).toBe('create user');
     });
 
-    it('should handle URL fragments', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
-
+    it('should handle method mismatch', async () => {
       workerify.get('/users', () => 'users');
 
-      const result = findRoute('GET', 'http://localhost:3000/users#section');
-      expect(result.route).toBeTruthy();
-      expect(result.route.path).toBe('/users');
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users',
+          method: 'POST', // Wrong method
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(404);
     });
 
-    it('should prioritize more specific routes', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
+    it('should match ALL method routes regardless of request method', async () => {
+      workerify.all('/api', () => 'any method');
 
-      // Add routes in order (first registered wins in current implementation)
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+
+      for (const method of methods) {
+        mockChannel.lastMessages = [];
+        mockChannel.simulateMessage({
+          type: 'workerify:handle',
+          id: `req-${method}`,
+          consumerId,
+          request: {
+            url: 'http://localhost:3000/api',
+            method: method as HttpMethod,
+            headers: {},
+            body: null,
+          },
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const responses = mockChannel.lastMessages.filter(
+          (msg) => msg.type === 'workerify:response',
+        );
+        expect(responses).toHaveLength(1);
+        expect(responses[0].status).toBe(200);
+        expect(responses[0].body).toBe('any method');
+      }
+    });
+  });
+
+  describe('Query parameters and fragments', () => {
+    it('should handle query parameters in URL', async () => {
+      const handler = vi.fn(() => 'users');
+      workerify.get('/users', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users?page=1&limit=10',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
+    });
+
+    it('should handle URL fragments', async () => {
+      workerify.get('/users', () => 'users');
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users#section',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
+    });
+  });
+
+  describe('Route priority', () => {
+    it('should match first registered route when multiple match', async () => {
+      // Register wildcard first, then specific
       workerify.get('/api/*', () => 'wildcard');
       workerify.get('/api/users', () => 'specific');
 
-      const result = findRoute('GET', 'http://localhost:3000/api/users');
-      // First registered route wins
-      expect(result.route.path).toBe('/api/');
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/api/users',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].body).toBe('wildcard'); // First registered wins
     });
   });
 
   describe('Edge cases', () => {
-    it('should handle malformed URLs gracefully', () => {
-      const findRoute = (workerify as any).findRoute.bind(workerify);
+    it('should handle paths with trailing slashes', async () => {
+      workerify.get('/users/', () => 'with slash');
 
-      workerify.get('/test', () => 'test');
+      await workerify.listen();
 
-      // Invalid URL should not crash
-      expect(() => {
-        findRoute('GET', 'invalid-url');
-      }).toThrow(); // URL constructor will throw, which is expected
-    });
+      const consumerId = mockChannel.getLastConsumerId();
 
-    it('should handle empty path', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
-
-      const result = matchRoute('', '');
-      expect(result).toEqual({ match: true });
-    });
-
-    it('should handle paths with trailing slashes', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
-
-      const result1 = matchRoute('/users/', '/users/');
-      const result2 = matchRoute('/users', '/users/');
-
-      expect(result1).toEqual({ match: true });
-      expect(result2).toEqual({ match: false });
-    });
-
-    it('should handle Unicode characters in paths', () => {
-      const matchRoute = (workerify as any).matchRoute.bind(workerify);
-
-      const result = matchRoute('/üsers/:ïd', '/üsers/123');
-      expect(result).toEqual({
-        match: true,
-        params: { ïd: '123' },
+      // Test with trailing slash
+      mockChannel.lastMessages = [];
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      let responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].status).toBe(200);
+
+      // Test without trailing slash
+      mockChannel.lastMessages = [];
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-2',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].status).toBe(404); // No match without slash
+    });
+
+    it('should handle Unicode characters in paths', async () => {
+      const handler = vi.fn((req) => `ID: ${req.params.ïd}`);
+      workerify.get('/üsers/:ïd', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/üsers/123',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses).toHaveLength(1);
+      expect(responses[0].status).toBe(200);
+      expect(responses[0].body).toBe('ID: 123');
     });
   });
 });

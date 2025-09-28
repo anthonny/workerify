@@ -1,12 +1,18 @@
-import { getRegisterModule } from './generated/register-template.js';
-import { SW_TEMPLATE } from './generated/service-worker-template.js';
+import { getRegisterModule } from './generated/register-template';
+import { SW_TEMPLATE } from './generated/service-worker-template';
 
 // Plugin interface definition to avoid vite dependency
 interface Plugin {
   name: string;
   enforce?: 'pre' | 'post';
-  configResolved?: (config: any) => void;
-  configureServer?: (server: any) => void;
+  configResolved?: (config: { base?: string }) => void;
+  configureServer?: (server: {
+    middlewares: {
+      use: (
+        middleware: (req: unknown, res: unknown, next: () => void) => void,
+      ) => void;
+    };
+  }) => void;
   generateBundle?: (this: PluginContext) => void;
   resolveId?: (id: string) => string | null;
   load?: (id: string) => string | null;
@@ -26,7 +32,7 @@ export default function workerifyPlugin(
 ): Plugin {
   const scope = (opts.scope ?? '/').endsWith('/')
     ? (opts.scope ?? '/')
-    : (opts.scope ?? '') + '/';
+    : `${opts.scope ?? ''}/`;
   const swFileName = opts.swFileName ?? 'workerify-sw.js';
 
   // keep content in memory, no need for file on disk
@@ -36,30 +42,41 @@ export default function workerifyPlugin(
   let viteBasePath = '/';
 
   // Final public SW URL will be calculated with the base path
-  let publicSwUrl = '/' + swFileName.replace(/^\//, '');
+  let publicSwUrl = `/${swFileName.replace(/^\//, '')}`;
 
   return {
     name: 'vite:workerify',
     enforce: 'pre',
 
     // Hook into Vite config to get base path
-    configResolved(config: any) {
+    configResolved(config: { base?: string }) {
       // Get the base path from Vite config (defaults to '/')
       viteBasePath = config.base || '/';
       // Ensure base path ends with '/'
       if (!viteBasePath.endsWith('/')) {
-        viteBasePath = viteBasePath + '/';
+        viteBasePath = `${viteBasePath}/`;
       }
       // Update the public SW URL with the base path
       publicSwUrl = viteBasePath + swFileName.replace(/^\//, '');
     },
 
     // Dev server: serve the SW file from memory
-    configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: any) => {
-        if (req.url === publicSwUrl) {
-          res.setHeader('Content-Type', 'application/javascript');
-          res.end(swSource);
+    configureServer(server: {
+      middlewares: {
+        use: (
+          middleware: (req: unknown, res: unknown, next: () => void) => void,
+        ) => void;
+      };
+    }) {
+      server.middlewares.use((req: unknown, res: unknown, next: () => void) => {
+        const typedReq = req as { url?: string };
+        const typedRes = res as {
+          setHeader: (name: string, value: string) => void;
+          end: (data: string) => void;
+        };
+        if (typedReq.url === publicSwUrl) {
+          typedRes.setHeader('Content-Type', 'application/javascript');
+          typedRes.end(swSource);
           return;
         }
         next();

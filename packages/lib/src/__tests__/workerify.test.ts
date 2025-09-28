@@ -1,19 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import {
-  createMockRequest,
-  setupBroadcastChannelMock,
-  waitForAsync,
-} from './test-utils.js';
+import type { RouteHandler } from '../types.js';
+import { MockBroadcastChannel } from './test-utils.js';
 
-// Setup mocks
-setupBroadcastChannelMock();
+// Mock fetch for testing
+global.fetch = vi.fn();
+
+// @ts-expect-error
+global.BroadcastChannel = MockBroadcastChannel;
 
 describe('Workerify', () => {
   let workerify: Workerify;
+  let mockFetch: ReturnType<typeof vi.fn>;
+  let mockChannel: MockBroadcastChannel;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch = global.fetch as ReturnType<typeof vi.fn>;
+
+    // Create a mock channel instance that will be used by Workerify
+    mockChannel = new MockBroadcastChannel('workerify');
+    // Replace the constructor to return our mock instance
+    (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
+      () => mockChannel,
+    );
+
     workerify = new Workerify({ logger: false });
+
+    // Mock successful registration
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ clientId: 'test-client' }),
+    });
   });
 
   afterEach(() => {
@@ -127,25 +145,10 @@ describe('Workerify', () => {
   describe('Server lifecycle', () => {
     it('should start listening', async () => {
       // Mock fetch for registration
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
-
-      // Mock routes acknowledgment
-      setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
-          channel.listeners.forEach((listener: any) => {
-            listener({
-              data: {
-                type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId,
-              },
-            });
-          });
-        }
-      }, 10);
 
       await expect(workerify.listen()).resolves.not.toThrow();
     });
@@ -165,24 +168,10 @@ describe('Workerify', () => {
       workerify.get('/exact/path', handler);
 
       // Mock fetch for registration
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
-
-      setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
-          channel.listeners.forEach((listener: any) => {
-            listener({
-              data: {
-                type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId,
-              },
-            });
-          });
-        }
-      }, 10);
 
       await expect(workerify.listen()).resolves.not.toThrow();
     });
@@ -192,24 +181,10 @@ describe('Workerify', () => {
       workerify.get('/prefix/*', handler);
 
       // Mock fetch for registration
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
-
-      setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
-          channel.listeners.forEach((listener: any) => {
-            listener({
-              data: {
-                type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId,
-              },
-            });
-          });
-        }
-      }, 10);
 
       await expect(workerify.listen()).resolves.not.toThrow();
     });
@@ -220,24 +195,10 @@ describe('Workerify', () => {
       workerify.get('/users/:id/posts/:postId', handler);
 
       // Mock fetch for registration
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
-
-      setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
-          channel.listeners.forEach((listener: any) => {
-            listener({
-              data: {
-                type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId,
-              },
-            });
-          });
-        }
-      }, 10);
 
       await expect(workerify.listen()).resolves.not.toThrow();
     });
@@ -247,7 +208,7 @@ describe('Workerify', () => {
     it('should handle invalid route handlers gracefully', () => {
       // Test with null handler (should not crash)
       expect(() => {
-        workerify.get('/test', null as any);
+        workerify.get('/test', null as unknown as RouteHandler);
       }).not.toThrow();
     });
 
@@ -263,55 +224,42 @@ describe('Workerify', () => {
 
   describe('Integration with BroadcastChannel', () => {
     it('should NOT send route updates when routes are registered (deferred to listen)', async () => {
-      const channelSpy = vi.spyOn(workerify['channel'], 'postMessage');
+      // Clear any existing messages
+      mockChannel.lastMessages = [];
 
       workerify.get('/test', () => 'test');
 
       // Should NOT have sent routes update message (deferred to listen)
-      expect(channelSpy).not.toHaveBeenCalled();
+      const routeMessages = mockChannel.getRouteUpdateMessages();
+      expect(routeMessages).toHaveLength(0);
     });
 
     it('should update service worker routes on listen', async () => {
-      const channelSpy = vi.spyOn(workerify['channel'], 'postMessage');
-
       workerify.get('/test1', () => 'test1');
       workerify.post('/test2', () => 'test2');
 
-      channelSpy.mockClear();
+      // Clear any existing messages
+      mockChannel.lastMessages = [];
 
       // Mock fetch for registration
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ clientId: 'test-client-id' }),
       });
 
-      setTimeout(() => {
-        const channel = workerify['channel'] as any;
-        if (channel && channel.listeners) {
-          channel.listeners.forEach((listener: any) => {
-            listener({
-              data: {
-                type: 'workerify:routes:update:response',
-                consumerId: (workerify as any).consumerId,
-              },
-            });
-          });
-        }
-      }, 10);
-
       await workerify.listen();
 
       // Should send routes update on listen
-      expect(channelSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'workerify:routes:update',
-          consumerId: expect.any(String),
-          routes: expect.arrayContaining([
-            expect.objectContaining({ path: '/test1', method: 'GET' }),
-            expect.objectContaining({ path: '/test2', method: 'POST' }),
-          ]),
-        }),
-      );
+      const routeMessages = mockChannel.getRouteUpdateMessages();
+      expect(routeMessages).toHaveLength(1);
+      expect(routeMessages[0]).toMatchObject({
+        type: 'workerify:routes:update',
+        consumerId: expect.stringMatching(/.+/),
+        routes: expect.arrayContaining([
+          expect.objectContaining({ path: '/test1', method: 'GET' }),
+          expect.objectContaining({ path: '/test2', method: 'POST' }),
+        ]),
+      });
     });
   });
 });

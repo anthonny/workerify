@@ -6,6 +6,9 @@
     "vite-plugin": "pnpm -F @workerify/vite-plugin",
     "example-quickstart": "pnpm -F @workerify/example-quickstart",
     "example-htmx": "pnpm -F @workerify/example-htmx",
+    "tests": "pnpm -F @workerify/tests",
+    "test:e2e": "pnpm -F @workerify/tests test",
+    "test:e2e:ui": "pnpm -F @workerify/tests test:ui",
     "changeset": "pnpm dlx @changesets/cli",
     "build": "turbo run build",
     "clean": "turbo run clean",
@@ -22,7 +25,7 @@
     "@types/node": "^24.5.2",
     "husky": "^9.1.7",
     "rimraf": "^6.0.1",
-    "turbo": "^2.5.6",
+    "turbo": "^2.5.8",
     "typescript": "^5.9.2",
     "vitest": "3.2.4"
   },
