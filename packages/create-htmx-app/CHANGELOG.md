@@ -1,5 +1,11 @@
 # @workerify/create-htmx-app
 
+## 0.4.1
+
+### Patch Changes
+
+- Fix blank template which does not integrate selected templating system
+
 ## 0.4.0
 
 ### Minor Changes

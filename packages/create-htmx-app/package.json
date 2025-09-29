@@ -1,6 +1,6 @@
 {
   "name": "@workerify/create-htmx-app",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Create a new HTMX app with Workerify",
   "type": "module",
   "bin": {
