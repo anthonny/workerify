@@ -1,5 +1,11 @@
 # @workerify/create-htmx-app
 
+## 0.4.0
+
+### Minor Changes
+
+- Add blank template to start quickly a new project
+
 ## 0.3.1
 
 ### Patch Changes
