@@ -246,6 +246,209 @@ describe('Request Handling', () => {
     });
   });
 
+  describe('Query parameters handling', () => {
+    it('should parse single query parameter', async () => {
+      const handler = vi.fn((req) => `Got param: ${req.query.name}`);
+      workerify.get('/test', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/test?name=John',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: 'http://localhost:3000/test?name=John',
+          method: 'GET',
+          query: { name: 'John' },
+        }),
+        expect.objectContaining({
+          status: 200,
+          statusText: 'OK',
+        }),
+      );
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].body).toBe('Got param: John');
+    });
+
+    it('should parse multiple query parameters', async () => {
+      const handler = vi.fn((req) => ({
+        name: req.query.name,
+        age: req.query.age,
+        city: req.query.city,
+      }));
+      workerify.get('/user', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/user?name=John&age=30&city=NYC',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: { name: 'John', age: '30', city: 'NYC' },
+        }),
+        expect.objectContaining({
+          status: 200,
+          statusText: 'OK',
+        }),
+      );
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].body).toEqual({
+        name: 'John',
+        age: '30',
+        city: 'NYC',
+      });
+    });
+
+    it('should handle requests without query parameters', async () => {
+      const handler = vi.fn(
+        (req) => `Has params: ${Object.keys(req.query).length > 0}`,
+      );
+      workerify.get('/test', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: {},
+        }),
+        expect.objectContaining({
+          status: 200,
+          statusText: 'OK',
+        }),
+      );
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].body).toBe('Has params: false');
+    });
+
+    it('should handle URL-encoded query parameters', async () => {
+      const handler = vi.fn((req) => req.query);
+      workerify.get('/search', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/search?q=hello%20world&filter=active%26verified',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: { q: 'hello world', filter: 'active&verified' },
+        }),
+        expect.objectContaining({
+          status: 200,
+          statusText: 'OK',
+        }),
+      );
+    });
+
+    it('should handle query parameters with route parameters', async () => {
+      const handler = vi.fn((req) => ({
+        userId: req.params.id,
+        filter: req.query.filter,
+        sort: req.query.sort,
+      }));
+      workerify.get('/users/:id', handler);
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost:3000/users/123?filter=active&sort=desc',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: { id: '123' },
+          query: { filter: 'active', sort: 'desc' },
+        }),
+        expect.objectContaining({
+          status: 200,
+          statusText: 'OK',
+        }),
+      );
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0].body).toEqual({
+        userId: '123',
+        filter: 'active',
+        sort: 'desc',
+      });
+    });
+  });
+
   describe('Form data handling', () => {
     it('should parse form-encoded data in POST requests', async () => {
       const handler = vi.fn((req) => req.body);
