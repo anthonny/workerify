@@ -29,6 +29,19 @@ async function main() {
     process.exit(0);
   }
 
+  const starterTemplate = await p.select({
+    message: 'Choose a starter template: ',
+    options: [
+      { label: 'Blank application', value: 'blank' },
+      { label: 'Todos application', value: 'todos' },
+    ],
+  });
+
+  if (isCancel(starterTemplate)) {
+    p.cancel('Operation cancelled');
+    process.exit(0);
+  }
+
   const template = await p.select({
     message: 'Choose a templating engine: ',
     options: [
@@ -64,111 +77,140 @@ async function main() {
   s.start(`Creating project in ${dest}`);
 
   try {
-    const repo = 'anthonny/workerify';
-    const basePath = path.resolve(__dirname, '..', 'templates', '_base');
-    if (fs.existsSync(basePath)) {
-      // Use fs.cp to copy local templates
-      fs.cpSync(basePath, dest, { recursive: true });
-    } else {
-      await downloadTemplate(
-        `github:${repo}/packages/create-htmx-app/templates/_base#main`,
-        {
-          dir: dest,
-          force: true,
-        },
-      );
-    }
-
-    const templatePath = path.resolve(__dirname, '..', 'templates', template);
-    const tempPath = path.resolve(dest, '_template');
-
-    fs.mkdirSync(tempPath);
-
-    if (fs.existsSync(templatePath)) {
-      // Use fs.cp to copy local templates
-      fs.cpSync(templatePath, tempPath, { recursive: true });
-
-      // Remove node_modules if it exists in the copied template
-      const nodeModulesPath = path.join(tempPath, 'node_modules');
-      if (fs.existsSync(nodeModulesPath)) {
-        fs.rmSync(nodeModulesPath, { recursive: true, force: true });
-      }
-    } else {
-      await downloadTemplate(
-        `github:${repo}/packages/create-htmx-app/templates/${template}#main`,
-        {
-          dir: tempPath,
-          force: true,
-        },
-      );
-    }
-
-    const srcPath = path.join(tempPath, 'src');
-    if (fs.existsSync(srcPath)) {
-      fs.cpSync(srcPath, path.join(dest, 'src'), { recursive: true });
-    }
-
-
-    const tsconfigDestPath = path.join(dest, 'tsconfig.json');
-    const tsconfigTempPath = path.join(tempPath, 'tsconfig.json');
-    if (fs.existsSync(tsconfigTempPath)) {
-      const tsconfigTemplate = JSON.parse(fs.readFileSync(tsconfigTempPath, { encoding: 'utf-8' }));
-      const tsconfigDest = JSON.parse(fs.readFileSync(tsconfigDestPath, { encoding: 'utf-8' }));
-
-      fs.writeFileSync(path.join(dest, 'tsconfig.json'), JSON.stringify({
-        ...tsconfigDest,
-        ...{
-          ...tsconfigTemplate,
-          compilerOptions: {
-            ...tsconfigDest.compilerOptions,
-            ...tsconfigTemplate.compilerOptions
-          }
-        }
-      }, null, 2))
-    }
-
-    const scriptsPath = path.join(tempPath, 'scripts');
-    if (fs.existsSync(scriptsPath)) {
-      fs.mkdirSync(path.join(dest, 'scripts'));
-      fs.cpSync(scriptsPath, path.join(dest, 'scripts'), {
-        recursive: true,
-      });
-    }
-
-    const nunjucksEs6Path = path.join(tempPath, 'nunjucks-es6');
-    if (fs.existsSync(nunjucksEs6Path)) {
-      fs.mkdirSync(path.join(dest, 'nunjucks-es6'));
-      fs.cpSync(nunjucksEs6Path, path.join(dest, 'nunjucks-es6'), {
-        recursive: true,
-      });
-    }
-
-    const packageJsonPath = path.join(dest, 'package.json');
-    const packageJsonTemplatePath = path.join(tempPath, 'package.json');
-    if (fs.existsSync(packageJsonPath)) {
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-      packageJson.name = projectName;
-
-      if (fs.existsSync(packageJsonTemplatePath)) {
-        const packageJsonTemplate = JSON.parse(
-          fs.readFileSync(packageJsonTemplatePath, 'utf-8'),
+    if (starterTemplate === 'blank') {
+      const repo = 'anthonny/workerify';
+      const basePath = path.resolve(__dirname, '..', 'templates', 'blank');
+      if (fs.existsSync(basePath)) {
+        // Use fs.cp to copy local templates
+        fs.cpSync(basePath, dest, { recursive: true });
+      } else {
+        await downloadTemplate(
+          `github:${repo}/packages/create-htmx-app/templates/blank#main`,
+          {
+            dir: dest,
+            force: true,
+          },
         );
-        packageJson.scripts = {
-          ...packageJson.scripts,
-          ...packageJsonTemplate.scripts,
-        };
-        packageJson.dependencies = {
-          ...packageJson.dependencies,
-          ...packageJsonTemplate.dependencies,
-        };
-        packageJson.devDependencies = {
-          ...packageJson.devDependencies,
-          ...packageJsonTemplate.devDependencies,
-        };
+      }
+    } else {
+      const repo = 'anthonny/workerify';
+      const basePath = path.resolve(__dirname, '..', 'templates', '_base');
+      if (fs.existsSync(basePath)) {
+        // Use fs.cp to copy local templates
+        fs.cpSync(basePath, dest, { recursive: true });
+      } else {
+        await downloadTemplate(
+          `github:${repo}/packages/create-htmx-app/templates/_base#main`,
+          {
+            dir: dest,
+            force: true,
+          },
+        );
       }
 
-      fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-      fs.rmSync(tempPath, { recursive: true, force: true });
+      const templatePath = path.resolve(__dirname, '..', 'templates', template);
+      const tempPath = path.resolve(dest, '_template');
+
+      fs.mkdirSync(tempPath);
+
+      if (fs.existsSync(templatePath)) {
+        // Use fs.cp to copy local templates
+        fs.cpSync(templatePath, tempPath, { recursive: true });
+
+        // Remove node_modules if it exists in the copied template
+        const nodeModulesPath = path.join(tempPath, 'node_modules');
+        if (fs.existsSync(nodeModulesPath)) {
+          fs.rmSync(nodeModulesPath, { recursive: true, force: true });
+        }
+      } else {
+        await downloadTemplate(
+          `github:${repo}/packages/create-htmx-app/templates/${template}#main`,
+          {
+            dir: tempPath,
+            force: true,
+          },
+        );
+      }
+
+      const srcPath = path.join(tempPath, 'src');
+      if (fs.existsSync(srcPath)) {
+        fs.cpSync(srcPath, path.join(dest, 'src'), { recursive: true });
+      }
+
+      const tsconfigDestPath = path.join(dest, 'tsconfig.json');
+      const tsconfigTempPath = path.join(tempPath, 'tsconfig.json');
+      if (fs.existsSync(tsconfigTempPath)) {
+        const tsconfigTemplate = JSON.parse(
+          fs.readFileSync(tsconfigTempPath, { encoding: 'utf-8' }),
+        );
+        const tsconfigDest = JSON.parse(
+          fs.readFileSync(tsconfigDestPath, { encoding: 'utf-8' }),
+        );
+
+        fs.writeFileSync(
+          path.join(dest, 'tsconfig.json'),
+          JSON.stringify(
+            {
+              ...tsconfigDest,
+              ...{
+                ...tsconfigTemplate,
+                compilerOptions: {
+                  ...tsconfigDest.compilerOptions,
+                  ...tsconfigTemplate.compilerOptions,
+                },
+              },
+            },
+            null,
+            2,
+          ),
+        );
+      }
+
+      const scriptsPath = path.join(tempPath, 'scripts');
+      if (fs.existsSync(scriptsPath)) {
+        fs.mkdirSync(path.join(dest, 'scripts'));
+        fs.cpSync(scriptsPath, path.join(dest, 'scripts'), {
+          recursive: true,
+        });
+      }
+
+      const nunjucksEs6Path = path.join(tempPath, 'nunjucks-es6');
+      if (fs.existsSync(nunjucksEs6Path)) {
+        fs.mkdirSync(path.join(dest, 'nunjucks-es6'));
+        fs.cpSync(nunjucksEs6Path, path.join(dest, 'nunjucks-es6'), {
+          recursive: true,
+        });
+      }
+
+      const packageJsonPath = path.join(dest, 'package.json');
+      const packageJsonTemplatePath = path.join(tempPath, 'package.json');
+      if (fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(
+          fs.readFileSync(packageJsonPath, 'utf-8'),
+        );
+        packageJson.name = projectName;
+
+        if (fs.existsSync(packageJsonTemplatePath)) {
+          const packageJsonTemplate = JSON.parse(
+            fs.readFileSync(packageJsonTemplatePath, 'utf-8'),
+          );
+          packageJson.scripts = {
+            ...packageJson.scripts,
+            ...packageJsonTemplate.scripts,
+          };
+          packageJson.dependencies = {
+            ...packageJson.dependencies,
+            ...packageJsonTemplate.dependencies,
+          };
+          packageJson.devDependencies = {
+            ...packageJson.devDependencies,
+            ...packageJsonTemplate.devDependencies,
+          };
+        }
+
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+        fs.rmSync(tempPath, { recursive: true, force: true });
+      }
     }
 
     s.stop('Project created successfully!');
