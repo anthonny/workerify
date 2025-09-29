@@ -17,6 +17,7 @@ export interface WorkerifyRequest {
   headers: Record<string, string>;
   body?: WorkerifyBody;
   params: Record<string, string>;
+  query: Record<string, string>;
 }
 
 export interface WorkerifyReply {

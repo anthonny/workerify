@@ -63,6 +63,14 @@ export class Workerify {
       // Add params to request
       request.params = params || {};
 
+      // Parse query parameters
+      const urlObj = new URL(request.url);
+      const query: Record<string, string> = {};
+      for (const [key, value] of urlObj.searchParams.entries()) {
+        query[key] = value;
+      }
+      request.query = query;
+
       // Parse form-encoded data for POST requests
       if (
         request.method === 'POST' &&

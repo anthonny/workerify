@@ -116,6 +116,7 @@ export function createMockRequest(
     },
     body: body || null,
     params: {},
+    query: {},
   };
 }
 
