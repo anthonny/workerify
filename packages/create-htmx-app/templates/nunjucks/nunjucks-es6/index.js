@@ -5,7 +5,7 @@ module.exports = {
         `nunjucksPrecompiled[${JSON.stringify(template.name)}] = function() {${template.template};}()`,
     );
 
-    return `// @ts-nocheck\nexport const nunjucksPrecompiled: Record<${templates.map((t) => `'${t.name}'`).join('|')}, any> = {};
+    return `// @ts-nocheck\nexport const nunjucksPrecompiled: Record<${templates.length ? templates.map((t) => `'${t.name}'`).join('|') : 'string'}, any> = {};
 ${templatesPrecompiled.join('\n')}`;
   },
 };

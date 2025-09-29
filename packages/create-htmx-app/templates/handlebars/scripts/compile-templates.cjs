@@ -30,7 +30,7 @@ let output = `// @ts-nocheck
 import Handlebars from 'handlebars/runtime';
 
 type HandlebarsTemplateDelegate = ReturnType<typeof Handlebars.template>
-export const handlebarsPrecompiled: Record<${templates.map((t) => `'${t.name}'`).join('|')}, HandlebarsTemplateDelegate> = {};
+export const handlebarsPrecompiled: Record<${templates.length ? templates.map((t) => `'${t.name}'`).join('|') : 'string'}, HandlebarsTemplateDelegate> = {};
 `;
 
 templates.forEach((template) => {

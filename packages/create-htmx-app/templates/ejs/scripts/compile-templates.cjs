@@ -30,9 +30,11 @@ fs.readdirSync(templatesDir).forEach((file) => {
   }
 });
 
-const pipedTemplateNames = Object.keys(templates)
-  .map((t) => `'${t}'`)
-  .join('|');
+const pipedTemplateNames = Object.keys(templates).length
+  ? Object.keys(templates)
+      .map((t) => `'${t}'`)
+      .join('|')
+  : 'string';
 // Generate the ES6 module
 let output = `// @ts-nocheck
 import ejs from 'ejs';

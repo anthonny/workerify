@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "",
     "dev": "concurrently \"npm run dev:vite\" \"npm run watch:templates\"",
     "dev:vite": "vite",
     "build": "vite build",
