@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg)](https://pnpm.io/)
-[![Discord](https://img.shields.io/discord/YOUR_DISCORD_SERVER_ID?color=7289da&label=Discord&logo=discord&logoColor=white)](https://discord.gg/9wW8KFXEnx)
+[![Discord](https://img.shields.io/discord/1419240998462029927?color=7289da&label=Discord&logo=discord&logoColor=white)](https://discord.gg/9wW8KFXEnx)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/anthonny/workerify/pulls)
 
 A Fastify-like router for Service Workers that enables handling HTTP requests directly in service workers with a familiar, ergonomic API.
