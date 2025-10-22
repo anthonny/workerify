@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workerify } from '../index.js';
-import type { WorkerifyReply, WorkerifyRequest } from '../types.js';
 import { MockBroadcastChannel } from './test-utils.js';
 
 // Mock fetch for testing
@@ -43,16 +42,16 @@ describe('Hooks System', () => {
     it('should execute onRequest hooks before route handling', async () => {
       const hookCalls: string[] = [];
 
-      workerify.addHook('onRequest', async (request, reply) => {
+      workerify.addHook('onRequest', async (request, _reply) => {
         hookCalls.push('hook1');
         expect(request.url).toBeDefined();
       });
 
-      workerify.addHook('onRequest', async (request, reply) => {
+      workerify.addHook('onRequest', async (_request, _reply) => {
         hookCalls.push('hook2');
       });
 
-      workerify.get('/test', async (request, reply) => {
+      workerify.get('/test', async (_request, _reply) => {
         hookCalls.push('handler');
         return { message: 'test' };
       });
@@ -78,13 +77,13 @@ describe('Hooks System', () => {
     });
 
     it('should allow onRequest hook to modify request', async () => {
-      workerify.addHook('onRequest', async (request, reply) => {
+      workerify.addHook('onRequest', async (request, _reply) => {
         request.headers['x-custom-header'] = 'added-by-hook';
       });
 
       let receivedHeaders: Record<string, string> = {};
 
-      workerify.get('/test', async (request, reply) => {
+      workerify.get('/test', async (request, _reply) => {
         receivedHeaders = request.headers;
         return { message: 'test' };
       });
@@ -114,16 +113,16 @@ describe('Hooks System', () => {
     it('should execute preHandler hooks after route matching but before handler', async () => {
       const hookCalls: string[] = [];
 
-      workerify.addHook('preHandler', async (request, reply) => {
+      workerify.addHook('preHandler', async (request, _reply) => {
         hookCalls.push('preHandler1');
         expect(request.params).toBeDefined();
       });
 
-      workerify.addHook('preHandler', async (request, reply) => {
+      workerify.addHook('preHandler', async (_request, _reply) => {
         hookCalls.push('preHandler2');
       });
 
-      workerify.get('/test/:id', async (request, reply) => {
+      workerify.get('/test/:id', async (request, _reply) => {
         hookCalls.push('handler');
         return { id: request.params.id };
       });
@@ -149,11 +148,11 @@ describe('Hooks System', () => {
     });
 
     it('should allow preHandler hook to modify reply', async () => {
-      workerify.addHook('preHandler', async (request, reply) => {
+      workerify.addHook('preHandler', async (_request, reply) => {
         reply.headers = { 'x-pre-handler': 'modified' };
       });
 
-      workerify.get('/test', async (request, reply) => {
+      workerify.get('/test', async (_request, _reply) => {
         return { message: 'test' };
       });
 
@@ -185,16 +184,16 @@ describe('Hooks System', () => {
     it('should execute onResponse hooks after handler execution', async () => {
       const hookCalls: string[] = [];
 
-      workerify.addHook('onResponse', async (request, reply) => {
+      workerify.addHook('onResponse', async (_request, reply) => {
         hookCalls.push('onResponse1');
         expect(reply.body).toBeDefined();
       });
 
-      workerify.addHook('onResponse', async (request, reply) => {
+      workerify.addHook('onResponse', async (_request, _reply) => {
         hookCalls.push('onResponse2');
       });
 
-      workerify.get('/test', async (request, reply) => {
+      workerify.get('/test', async (_request, _reply) => {
         hookCalls.push('handler');
         return { message: 'test' };
       });
@@ -220,14 +219,14 @@ describe('Hooks System', () => {
     });
 
     it('should allow onResponse hook to modify response', async () => {
-      workerify.addHook('onResponse', async (request, reply) => {
+      workerify.addHook('onResponse', async (_request, reply) => {
         reply.headers = {
           ...reply.headers,
           'x-response-time': '100ms',
         };
       });
 
-      workerify.get('/test', async (request, reply) => {
+      workerify.get('/test', async (_request, _reply) => {
         return { message: 'test' };
       });
 
@@ -259,11 +258,11 @@ describe('Hooks System', () => {
     it('should execute onError hooks when an error occurs', async () => {
       const errors: Error[] = [];
 
-      workerify.addHook('onError', async (error, request, reply) => {
+      workerify.addHook('onError', async (error, _request, _reply) => {
         errors.push(error);
       });
 
-      workerify.get('/test', async (request, reply) => {
+      workerify.get('/test', async (_request, _reply) => {
         throw new Error('Test error');
       });
 
@@ -289,12 +288,12 @@ describe('Hooks System', () => {
     });
 
     it('should allow onError hook to modify error response', async () => {
-      workerify.addHook('onError', async (error, request, reply) => {
+      workerify.addHook('onError', async (_error, _request, reply) => {
         reply.status = 418;
         reply.body = { error: 'Custom error message' };
       });
 
-      workerify.get('/test', async (request, reply) => {
+      workerify.get('/test', async (_request, _reply) => {
         throw new Error('Test error');
       });
 
@@ -324,15 +323,20 @@ describe('Hooks System', () => {
     });
 
     it('should handle errors in onError hooks gracefully', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
 
       const workerifyWithLogger = new Workerify({ logger: true });
 
-      workerifyWithLogger.addHook('onError', async (error, request, reply) => {
-        throw new Error('Hook error');
-      });
+      workerifyWithLogger.addHook(
+        'onError',
+        async (_error, _request, _reply) => {
+          throw new Error('Hook error');
+        },
+      );
 
-      workerifyWithLogger.get('/test', async (request, reply) => {
+      workerifyWithLogger.get('/test', async (_request, _reply) => {
         throw new Error('Test error');
       });
 
@@ -388,11 +392,11 @@ describe('Hooks System', () => {
     it('should execute multiple onRoute hooks in order', async () => {
       const calls: string[] = [];
 
-      workerify.addHook('onRoute', async (route) => {
+      workerify.addHook('onRoute', async (_route) => {
         calls.push('hook1');
       });
 
-      workerify.addHook('onRoute', async (route) => {
+      workerify.addHook('onRoute', async (_route) => {
         calls.push('hook2');
       });
 
@@ -475,12 +479,12 @@ describe('Hooks System', () => {
     it('should properly await async hooks', async () => {
       const results: number[] = [];
 
-      workerify.addHook('onRequest', async (request, reply) => {
+      workerify.addHook('onRequest', async (_request, _reply) => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         results.push(1);
       });
 
-      workerify.addHook('preHandler', async (request, reply) => {
+      workerify.addHook('preHandler', async (_request, _reply) => {
         await new Promise((resolve) => setTimeout(resolve, 30));
         results.push(2);
       });
@@ -529,7 +533,7 @@ describe('Hooks System', () => {
 
       workerify.addHook('onRequest', async (request, reply) => {
         // Check authorization
-        const authHeader = request.headers['authorization'];
+        const authHeader = request.headers.authorization;
         if (!authHeader) {
           reply.status = 401;
           reply.statusText = 'Unauthorized';
@@ -539,7 +543,7 @@ describe('Hooks System', () => {
         }
       });
 
-      workerify.get('/protected', async (request, reply) => {
+      workerify.get('/protected', async (_request, _reply) => {
         handlerCalled();
         return { message: 'Protected resource' };
       });
@@ -595,7 +599,7 @@ describe('Hooks System', () => {
         }
       });
 
-      workerify.get('/users/:id', async (request, reply) => {
+      workerify.get('/users/:id', async (request, _reply) => {
         handlerCalled();
         return { id: request.params.id, name: 'John Doe' };
       });
@@ -638,7 +642,7 @@ describe('Hooks System', () => {
       const handlerCalled = vi.fn();
 
       workerify.addHook('onRequest', async (request, reply) => {
-        const authHeader = request.headers['authorization'];
+        const authHeader = request.headers.authorization;
         if (!authHeader) {
           reply.status = 401;
           reply.body = { error: 'Unauthorized' };
@@ -647,7 +651,7 @@ describe('Hooks System', () => {
         // If authorization is present, don't set body
       });
 
-      workerify.get('/protected', async (request, reply) => {
+      workerify.get('/protected', async (_request, _reply) => {
         handlerCalled();
         return { message: 'Success' };
       });
