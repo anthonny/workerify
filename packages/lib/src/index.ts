@@ -1,6 +1,14 @@
 import type {
   BroadcastMessage,
+  HookHandler,
+  HookName,
   HttpMethod,
+  OnErrorHook,
+  OnReadyHook,
+  OnRequestHook,
+  OnResponseHook,
+  OnRouteHook,
+  PreHandlerHook,
   Route,
   RouteHandler,
   WorkerifyOptions,
@@ -15,6 +23,7 @@ export class Workerify {
   private options: WorkerifyOptions;
   private consumerId: string;
   private clientId: string | null = null;
+  private hooks: Map<HookName, HookHandler[]> = new Map();
 
   constructor(options: WorkerifyOptions = {}) {
     this.options = { logger: false, ...options };
@@ -47,7 +56,31 @@ export class Workerify {
   }
 
   private async handleRequest(id: string, request: WorkerifyRequest) {
+    const reply: WorkerifyReply = {
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      bodyType: 'json',
+    };
+
     try {
+      // Execute onRequest hooks
+      await this.executeOnRequestHooks(request, reply);
+
+      // Check if hook responded early (e.g., authentication failure)
+      if (reply.body !== undefined) {
+        // Execute onResponse hooks even for early responses
+        await this.executeOnResponseHooks(request, reply);
+        this.sendResponse(id, reply);
+
+        if (this.options.logger) {
+          console.log(
+            `[Workerify] ${request.method} ${request.url} - ${reply.status} (early response from onRequest)`,
+          );
+        }
+        return;
+      }
+
       const { route, params } = this.findRoute(request.method, request.url);
 
       if (!route) {
@@ -101,12 +134,22 @@ export class Workerify {
         }
       }
 
-      const reply: WorkerifyReply = {
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        bodyType: 'json',
-      };
+      // Execute preHandler hooks
+      await this.executePreHandlerHooks(request, reply);
+
+      // Check if hook responded early (e.g., rate limiting, validation)
+      if (reply.body !== undefined) {
+        // Execute onResponse hooks even for early responses
+        await this.executeOnResponseHooks(request, reply);
+        this.sendResponse(id, reply);
+
+        if (this.options.logger) {
+          console.log(
+            `[Workerify] ${request.method} ${request.url} - ${reply.status} (early response from preHandler)`,
+          );
+        }
+        return;
+      }
 
       const result = await route.handler(request, reply);
 
@@ -131,6 +174,9 @@ export class Workerify {
         }
       }
 
+      // Execute onResponse hooks
+      await this.executeOnResponseHooks(request, reply);
+
       this.sendResponse(id, reply);
 
       if (this.options.logger) {
@@ -142,6 +188,13 @@ export class Workerify {
       if (this.options.logger) {
         console.error('[Workerify] Error handling request:', error);
       }
+
+      // Execute onError hooks
+      await this.executeOnErrorHooks(
+        error instanceof Error ? error : new Error(String(error)),
+        request,
+        reply,
+      );
 
       this.sendResponse(id, {
         status: 500,
@@ -238,7 +291,7 @@ export class Workerify {
     return { route: null };
   }
 
-  private addRoute(
+  private async addRoute(
     method: HttpMethod | undefined,
     path: string,
     handler: RouteHandler,
@@ -251,6 +304,9 @@ export class Workerify {
     if (this.options.logger) {
       console.log(`[Workerify] Route registered: ${method || 'ALL'} ${path}`);
     }
+
+    // Execute onRoute hooks
+    await this.executeOnRouteHooks(route);
   }
 
   private updateServiceWorkerRoutes() {
@@ -286,50 +342,52 @@ export class Workerify {
   // HTTP method handlers
   get(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute('GET', processedPath, handler, match);
+    // Note: addRoute is async but we don't await here to maintain synchronous API
+    // Hooks will be executed but won't block route registration
+    void this.addRoute('GET', processedPath, handler, match);
     return this;
   }
 
   post(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute('POST', processedPath, handler, match);
+    void this.addRoute('POST', processedPath, handler, match);
     return this;
   }
 
   put(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute('PUT', processedPath, handler, match);
+    void this.addRoute('PUT', processedPath, handler, match);
     return this;
   }
 
   delete(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute('DELETE', processedPath, handler, match);
+    void this.addRoute('DELETE', processedPath, handler, match);
     return this;
   }
 
   patch(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute('PATCH', processedPath, handler, match);
+    void this.addRoute('PATCH', processedPath, handler, match);
     return this;
   }
 
   head(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute('HEAD', processedPath, handler, match);
+    void this.addRoute('HEAD', processedPath, handler, match);
     return this;
   }
 
   option(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute('OPTIONS', processedPath, handler, match);
+    void this.addRoute('OPTIONS', processedPath, handler, match);
     return this;
   }
 
   // Route for all methods
   all(path: string, handler: RouteHandler) {
     const { path: processedPath, match } = this.processPath(path);
-    this.addRoute(undefined, processedPath, handler, match);
+    void this.addRoute(undefined, processedPath, handler, match);
     return this;
   }
 
@@ -340,7 +398,7 @@ export class Workerify {
     handler: RouteHandler;
     match?: 'exact' | 'prefix';
   }) {
-    this.addRoute(
+    void this.addRoute(
       config.method,
       config.path,
       config.handler,
@@ -357,6 +415,9 @@ export class Workerify {
         'routes',
       );
     }
+
+    // Execute onReady hooks
+    await this.executeOnReadyHooks();
 
     const readiness = await new Promise<boolean>((resolve) => {
       // Set up listener for acknowledgment
@@ -491,6 +552,98 @@ export class Workerify {
       console.log('[Workerify] Server closed');
     }
   }
+
+  // Hook system methods
+  addHook(name: 'onRequest', handler: OnRequestHook): this;
+  addHook(name: 'preHandler', handler: PreHandlerHook): this;
+  addHook(name: 'onResponse', handler: OnResponseHook): this;
+  addHook(name: 'onError', handler: OnErrorHook): this;
+  addHook(name: 'onRoute', handler: OnRouteHook): this;
+  addHook(name: 'onReady', handler: OnReadyHook): this;
+  addHook(name: HookName, handler: HookHandler): this {
+    const handlers = this.hooks.get(name) || [];
+    handlers.push(handler);
+    this.hooks.set(name, handlers);
+
+    if (this.options.logger) {
+      console.log(`[Workerify] Hook registered: ${name}`);
+    }
+
+    return this;
+  }
+
+  private async executeOnRequestHooks(
+    request: WorkerifyRequest,
+    reply: WorkerifyReply,
+  ): Promise<void> {
+    const hooks = this.hooks.get('onRequest') as OnRequestHook[] | undefined;
+    if (!hooks) return;
+
+    for (const hook of hooks) {
+      await hook(request, reply);
+    }
+  }
+
+  private async executePreHandlerHooks(
+    request: WorkerifyRequest,
+    reply: WorkerifyReply,
+  ): Promise<void> {
+    const hooks = this.hooks.get('preHandler') as PreHandlerHook[] | undefined;
+    if (!hooks) return;
+
+    for (const hook of hooks) {
+      await hook(request, reply);
+    }
+  }
+
+  private async executeOnResponseHooks(
+    request: WorkerifyRequest,
+    reply: WorkerifyReply,
+  ): Promise<void> {
+    const hooks = this.hooks.get('onResponse') as OnResponseHook[] | undefined;
+    if (!hooks) return;
+
+    for (const hook of hooks) {
+      await hook(request, reply);
+    }
+  }
+
+  private async executeOnErrorHooks(
+    error: Error,
+    request: WorkerifyRequest,
+    reply: WorkerifyReply,
+  ): Promise<void> {
+    const hooks = this.hooks.get('onError') as OnErrorHook[] | undefined;
+    if (!hooks) return;
+
+    for (const hook of hooks) {
+      try {
+        await hook(error, request, reply);
+      } catch (hookError) {
+        if (this.options.logger) {
+          console.error('[Workerify] Error in onError hook:', hookError);
+        }
+      }
+    }
+  }
+
+  private async executeOnRouteHooks(route: Route): Promise<void> {
+    const hooks = this.hooks.get('onRoute') as OnRouteHook[] | undefined;
+    if (!hooks) return;
+
+    for (const hook of hooks) {
+      await hook(route);
+    }
+  }
+
+  private async executeOnReadyHooks(): Promise<void> {
+    const hooks = this.hooks.get('onReady') as OnReadyHook[] | undefined;
+    if (!hooks) return;
+
+    for (const hook of hooks) {
+      await hook();
+    }
+  }
 }
 
 // Default export factory function to match README usage
@@ -500,6 +653,14 @@ export default function createWorkerify(opts?: WorkerifyOptions): Workerify {
 
 // Named exports
 export type {
+  HookHandler,
+  HookName,
+  OnErrorHook,
+  OnReadyHook,
+  OnRequestHook,
+  OnResponseHook,
+  OnRouteHook,
+  PreHandlerHook,
   RouteHandler,
   WorkerifyOptions,
   WorkerifyPlugin,

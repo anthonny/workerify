@@ -24,6 +24,7 @@ describe('Multi-tab Support', () => {
     // Create a mock channel instance that will be used by Workerify
     mockChannel = new MockBroadcastChannel('workerify');
     // Replace the constructor to return our mock instance
+    // @ts-expect-error - Mocking global BroadcastChannel for testing
     (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
       () => mockChannel,
     );
@@ -248,6 +249,7 @@ describe('Multi-tab Support', () => {
       const mockChannel2 = new MockBroadcastChannel('workerify');
 
       let channelCallCount = 0;
+      // @ts-expect-error - Mocking global BroadcastChannel for testing
       (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
         () => {
           channelCallCount++;
@@ -302,6 +304,7 @@ describe('Multi-tab Support', () => {
       const mockChannel2 = new MockBroadcastChannel('workerify');
 
       let channelCallCount = 0;
+      // @ts-expect-error - Mocking global BroadcastChannel for testing
       (global.BroadcastChannel as unknown as typeof BroadcastChannel) = vi.fn(
         () => {
           channelCallCount++;
