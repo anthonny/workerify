@@ -67,3 +67,45 @@ export type WorkerifyPlugin = (
   instance: object,
   options?: Record<string, unknown>,
 ) => Promise<void> | void;
+
+// Hook system types
+export type HookName =
+  | 'onRequest'
+  | 'preHandler'
+  | 'onResponse'
+  | 'onError'
+  | 'onRoute'
+  | 'onReady';
+
+export type OnRequestHook = (
+  request: WorkerifyRequest,
+  reply: WorkerifyReply,
+) => Promise<void> | void;
+
+export type PreHandlerHook = (
+  request: WorkerifyRequest,
+  reply: WorkerifyReply,
+) => Promise<void> | void;
+
+export type OnResponseHook = (
+  request: WorkerifyRequest,
+  reply: WorkerifyReply,
+) => Promise<void> | void;
+
+export type OnErrorHook = (
+  error: Error,
+  request: WorkerifyRequest,
+  reply: WorkerifyReply,
+) => Promise<void> | void;
+
+export type OnRouteHook = (routeOptions: Route) => Promise<void> | void;
+
+export type OnReadyHook = () => Promise<void> | void;
+
+export type HookHandler =
+  | OnRequestHook
+  | PreHandlerHook
+  | OnResponseHook
+  | OnErrorHook
+  | OnRouteHook
+  | OnReadyHook;
