@@ -1,5 +1,11 @@
 # @workerify/lib
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix hook handler response and type definition WorkerifyPlugin
+
 ## 0.2.0
 
 ### Minor Changes
