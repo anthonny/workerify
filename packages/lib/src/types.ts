@@ -1,3 +1,6 @@
+// Import type only to avoid circular dependency
+import type { Workerify } from './index.js';
+
 export type HttpMethod =
   | 'GET'
   | 'POST'
@@ -64,7 +67,7 @@ export interface BroadcastMessage {
 }
 
 export type WorkerifyPlugin = (
-  instance: object,
+  instance: Workerify,
   options?: Record<string, unknown>,
 ) => Promise<void> | void;
 
