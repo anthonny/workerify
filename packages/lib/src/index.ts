@@ -11,6 +11,7 @@ import type {
   PreHandlerHook,
   Route,
   RouteHandler,
+  WorkerifyBody,
   WorkerifyOptions,
   WorkerifyPlugin,
   WorkerifyReply,
@@ -69,6 +70,8 @@ export class Workerify {
 
       // Check if hook responded early (e.g., authentication failure)
       if (reply.body !== undefined) {
+        // Process reply body to auto-detect bodyType and headers
+        this.processReplyBody(reply.body, reply);
         // Execute onResponse hooks even for early responses
         await this.executeOnResponseHooks(request, reply);
         this.sendResponse(id, reply);
@@ -139,6 +142,8 @@ export class Workerify {
 
       // Check if hook responded early (e.g., rate limiting, validation)
       if (reply.body !== undefined) {
+        // Process reply body to auto-detect bodyType and headers
+        this.processReplyBody(reply.body, reply);
         // Execute onResponse hooks even for early responses
         await this.executeOnResponseHooks(request, reply);
         this.sendResponse(id, reply);
@@ -153,25 +158,9 @@ export class Workerify {
 
       const result = await route.handler(request, reply);
 
-      // If handler returns a value, use it as the body
-      //
+      // If handler returns a value, process it to auto-detect bodyType and headers
       if (result !== undefined) {
-        reply.body = result;
-        if (typeof result === 'string') {
-          reply.bodyType = 'text';
-          reply.headers = {
-            'Content-Type': 'text/html',
-            ...reply.headers,
-          };
-        } else if (result instanceof ArrayBuffer) {
-          reply.bodyType = 'arrayBuffer';
-        } else {
-          reply.bodyType = 'json';
-          reply.headers = {
-            'Content-Type': 'application/json',
-            ...reply.headers,
-          };
-        }
+        this.processReplyBody(result, reply);
       }
 
       // Execute onResponse hooks
@@ -217,6 +206,28 @@ export class Workerify {
     };
 
     this.channel.postMessage(message);
+  }
+
+  private processReplyBody(body: WorkerifyBody, reply: WorkerifyReply): void {
+    if (body === undefined) return;
+
+    reply.body = body;
+
+    if (typeof body === 'string') {
+      reply.bodyType = 'text';
+      reply.headers = {
+        'Content-Type': 'text/html',
+        ...reply.headers,
+      };
+    } else if (body instanceof ArrayBuffer) {
+      reply.bodyType = 'arrayBuffer';
+    } else {
+      reply.bodyType = 'json';
+      reply.headers = {
+        'Content-Type': 'application/json',
+        ...reply.headers,
+      };
+    }
   }
 
   private matchRoute(

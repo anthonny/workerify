@@ -527,6 +527,232 @@ describe('Hooks System', () => {
     });
   });
 
+  describe('Automatic body type detection in hooks', () => {
+    it('should auto-detect text bodyType for string response in onRequest hook', async () => {
+      workerify.addHook('onRequest', async (_request, reply) => {
+        reply.status = 200;
+        reply.body = '<h1>Hello from hook</h1>';
+      });
+
+      workerify.get('/test', async () => {
+        return { message: 'should not be called' };
+      });
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        body: '<h1>Hello from hook</h1>',
+        bodyType: 'text',
+      });
+      expect(responses[0]?.headers?.['Content-Type']).toBe('text/html');
+    });
+
+    it('should auto-detect arrayBuffer bodyType for ArrayBuffer response in onRequest hook', async () => {
+      const buffer = new ArrayBuffer(8);
+
+      workerify.addHook('onRequest', async (_request, reply) => {
+        reply.status = 200;
+        reply.body = buffer;
+      });
+
+      workerify.get('/test', async () => {
+        return { message: 'should not be called' };
+      });
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        body: buffer,
+        bodyType: 'arrayBuffer',
+      });
+    });
+
+    it('should auto-detect json bodyType for object response in onRequest hook', async () => {
+      workerify.addHook('onRequest', async (_request, reply) => {
+        reply.status = 403;
+        reply.body = { error: 'Forbidden' };
+      });
+
+      workerify.get('/test', async () => {
+        return { message: 'should not be called' };
+      });
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost/test',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        body: { error: 'Forbidden' },
+        bodyType: 'json',
+      });
+      expect(responses[0]?.headers?.['Content-Type']).toBe('application/json');
+    });
+
+    it('should auto-detect text bodyType for string response in preHandler hook', async () => {
+      workerify.addHook('preHandler', async (_request, reply) => {
+        reply.status = 200;
+        reply.body = '<div>Cached response</div>';
+      });
+
+      workerify.get('/cached', async () => {
+        return { message: 'should not be called' };
+      });
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost/cached',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        body: '<div>Cached response</div>',
+        bodyType: 'text',
+      });
+      expect(responses[0]?.headers?.['Content-Type']).toBe('text/html');
+    });
+
+    it('should auto-detect arrayBuffer bodyType for ArrayBuffer response in preHandler hook', async () => {
+      const buffer = new ArrayBuffer(16);
+
+      workerify.addHook('preHandler', async (_request, reply) => {
+        reply.status = 200;
+        reply.body = buffer;
+      });
+
+      workerify.get('/binary', async () => {
+        return { message: 'should not be called' };
+      });
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost/binary',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        body: buffer,
+        bodyType: 'arrayBuffer',
+      });
+    });
+
+    it('should auto-detect json bodyType for object response in preHandler hook', async () => {
+      workerify.addHook('preHandler', async (_request, reply) => {
+        reply.status = 429;
+        reply.body = { error: 'Rate limited' };
+      });
+
+      workerify.get('/api', async () => {
+        return { message: 'should not be called' };
+      });
+
+      await workerify.listen();
+
+      const consumerId = mockChannel.getLastConsumerId();
+      mockChannel.simulateMessage({
+        type: 'workerify:handle',
+        id: 'req-1',
+        consumerId,
+        request: {
+          url: 'http://localhost/api',
+          method: 'GET',
+          headers: {},
+          body: null,
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const responses = mockChannel.lastMessages.filter(
+        (msg) => msg.type === 'workerify:response',
+      );
+      expect(responses[0]).toMatchObject({
+        body: { error: 'Rate limited' },
+        bodyType: 'json',
+      });
+      expect(responses[0]?.headers?.['Content-Type']).toBe('application/json');
+    });
+  });
+
   describe('Early response from hooks', () => {
     it('should allow responding from onRequest hook and skip handler', async () => {
       const handlerCalled = vi.fn();
