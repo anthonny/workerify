@@ -1,5 +1,11 @@
 # @workerify/lib
 
+## 0.2.2
+
+### Patch Changes
+
+- New version for new build only
+
 ## 0.2.1
 
 ### Patch Changes
