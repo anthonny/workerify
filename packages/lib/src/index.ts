@@ -25,12 +25,16 @@ export class Workerify {
   private consumerId: string;
   private clientId: string | null = null;
   private hooks: Map<HookName, HookHandler[]> = new Map();
+  private scopePrefix: string;
 
   constructor(options: WorkerifyOptions = {}) {
     this.options = { logger: false, ...options };
     this.channel = new BroadcastChannel('workerify');
     // Generate unique consumer ID
     this.consumerId = `consumer-${Math.random().toString(36).substring(2)}-${Date.now()}`;
+
+    // Normalize scope to use as route prefix
+    this.scopePrefix = this.normalizeScope(options.scope);
 
     this.channel.onmessage = this.handleMessage.bind(this);
 
@@ -39,7 +43,37 @@ export class Workerify {
         '[Workerify] Instance created with consumerId:',
         this.consumerId,
       );
+      if (this.scopePrefix) {
+        console.log('[Workerify] Scope prefix:', this.scopePrefix);
+      }
     }
+  }
+
+  private normalizeScope(scope?: string): string {
+    if (!scope || scope === '/') {
+      return '';
+    }
+
+    // Ensure it starts with / and doesn't end with /
+    let normalized = scope;
+    if (!normalized.startsWith('/')) {
+      normalized = `/${normalized}`;
+    }
+    if (normalized.endsWith('/')) {
+      normalized = normalized.slice(0, -1);
+    }
+
+    return normalized;
+  }
+
+  private prefixPath(path: string): string {
+    if (!this.scopePrefix) {
+      return path;
+    }
+
+    // Ensure path starts with /
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${this.scopePrefix}${normalizedPath}`;
   }
 
   private handleMessage(event: MessageEvent<BroadcastMessage>) {
@@ -340,14 +374,17 @@ export class Workerify {
     path: string;
     match: 'exact' | 'prefix';
   } {
-    if (path.endsWith('/*')) {
+    // First prefix with basePath
+    const prefixedPath = this.prefixPath(path);
+
+    if (prefixedPath.endsWith('/*')) {
       // Remove /* and use prefix matching
       return {
-        path: path.slice(0, -1), // Remove the * but keep the /
+        path: prefixedPath.slice(0, -1), // Remove the * but keep the /
         match: 'prefix',
       };
     }
-    return { path, match: 'exact' };
+    return { path: prefixedPath, match: 'exact' };
   }
 
   // HTTP method handlers
@@ -409,9 +446,11 @@ export class Workerify {
     handler: RouteHandler;
     match?: 'exact' | 'prefix';
   }) {
+    // Prefix the path with basePath
+    const prefixedPath = this.prefixPath(config.path);
     void this.addRoute(
       config.method,
-      config.path,
+      prefixedPath,
       config.handler,
       config.match || 'exact',
     );
