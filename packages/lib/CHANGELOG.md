@@ -1,5 +1,11 @@
 # @workerify/lib
 
+## 0.3.0
+
+### Minor Changes
+
+- Implement scope behaviour, add options on register function
+
 ## 0.2.2
 
 ### Patch Changes
