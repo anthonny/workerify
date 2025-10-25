@@ -26,6 +26,7 @@ export class Workerify {
   private clientId: string | null = null;
   private hooks: Map<HookName, HookHandler[]> = new Map();
   private scopePrefix: string;
+  private pluginPrefixes: string[] = [];
 
   constructor(options: WorkerifyOptions = {}) {
     this.options = { logger: false, ...options };
@@ -67,13 +68,17 @@ export class Workerify {
   }
 
   private prefixPath(path: string): string {
-    if (!this.scopePrefix) {
-      return path;
-    }
-
     // Ensure path starts with /
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    return `${this.scopePrefix}${normalizedPath}`;
+
+    // Build full prefix: scope + plugin prefixes
+    const fullPrefix = this.scopePrefix + this.pluginPrefixes.join('');
+
+    if (!fullPrefix) {
+      return normalizedPath;
+    }
+
+    return `${fullPrefix}${normalizedPath}`;
   }
 
   private handleMessage(event: MessageEvent<BroadcastMessage>) {
@@ -589,10 +594,36 @@ export class Workerify {
     plugin: WorkerifyPlugin,
     options?: Record<string, unknown>,
   ): Promise<this> {
-    await plugin(this, options);
-    if (this.options.logger) {
-      console.log('[Workerify] Plugin registered');
+    // Extract path from options if it exists
+    const pluginPath =
+      options && typeof options.path === 'string' ? options.path : '';
+
+    // Normalize the plugin path prefix
+    const normalizedPluginPath = this.normalizeScope(pluginPath);
+
+    // Push plugin prefix to the stack
+    if (normalizedPluginPath) {
+      this.pluginPrefixes.push(normalizedPluginPath);
+
+      if (this.options.logger) {
+        console.log('[Workerify] Plugin prefix:', normalizedPluginPath);
+      }
     }
+
+    try {
+      // Execute the plugin
+      await plugin(this, options);
+
+      if (this.options.logger) {
+        console.log('[Workerify] Plugin registered');
+      }
+    } finally {
+      // Always pop the plugin prefix, even if plugin throws an error
+      if (normalizedPluginPath) {
+        this.pluginPrefixes.pop();
+      }
+    }
+
     return this;
   }
 

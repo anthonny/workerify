@@ -49,6 +49,242 @@ app.get('/api/*', async (request, reply) => {
 await app.listen();
 ```
 
+## Scope Prefix
+
+You can set a global `scope` prefix that will be applied to all routes. This is useful for versioning your API or organizing routes under a common path.
+
+```typescript
+import { Workerify } from '@workerify/lib';
+
+// All routes will be prefixed with /api/v1
+const app = new Workerify({ scope: '/api/v1' });
+
+app.get('/users', async () => {
+  // Accessible at: /api/v1/users
+  return { users: [] };
+});
+
+app.get('/posts/:id', async (request) => {
+  // Accessible at: /api/v1/posts/:id
+  return { postId: request.params.id };
+});
+
+await app.listen();
+```
+
+### Scope Normalization
+
+The scope prefix is automatically normalized:
+- Leading slash is added if missing: `api` → `/api`
+- Trailing slash is removed: `/api/` → `/api`
+- Root scope is treated as no prefix: `/` → ``
+
+```typescript
+// These all produce the same result: /api/users
+new Workerify({ scope: 'api' })     // → /api/users
+new Workerify({ scope: '/api' })    // → /api/users
+new Workerify({ scope: '/api/' })   // → /api/users
+```
+
+## Plugin System
+
+Workerify supports a powerful plugin system inspired by Fastify, allowing you to encapsulate routes, hooks, and logic into reusable modules.
+
+### Basic Plugin
+
+```typescript
+import { Workerify, WorkerifyPlugin } from '@workerify/lib';
+
+// Define a plugin
+const usersPlugin: WorkerifyPlugin = (app, options) => {
+  app.get('/list', async () => {
+    return { users: ['Alice', 'Bob', 'Charlie'] };
+  });
+
+  app.get('/:id', async (request) => {
+    return { userId: request.params.id };
+  });
+
+  app.post('/', async (request) => {
+    return { created: true, data: request.body };
+  });
+};
+
+const app = new Workerify();
+
+// Register the plugin
+await app.register(usersPlugin);
+
+await app.listen();
+```
+
+### Plugin with Path Prefix
+
+You can provide a `path` option when registering a plugin to prefix all routes within that plugin:
+
+```typescript
+const usersPlugin: WorkerifyPlugin = (app) => {
+  app.get('/list', async () => ({ users: [] }));     // → /users/list
+  app.get('/:id', async (request) => ({ id: request.params.id }));  // → /users/:id
+};
+
+const postsPlugin: WorkerifyPlugin = (app) => {
+  app.get('/list', async () => ({ posts: [] }));     // → /posts/list
+  app.get('/:id', async (request) => ({ id: request.params.id }));  // → /posts/:id
+};
+
+const app = new Workerify();
+
+await app.register(usersPlugin, { path: '/users' });
+await app.register(postsPlugin, { path: '/posts' });
+
+await app.listen();
+```
+
+### Combining Scope and Plugin Path
+
+The scope prefix and plugin path are combined in order: `scope` + `plugin path` + `route path`
+
+```typescript
+const app = new Workerify({ scope: '/api/v1' });
+
+const usersPlugin: WorkerifyPlugin = (app) => {
+  app.get('/list', async () => ({ users: [] }));
+  // Accessible at: /api/v1/users/list
+};
+
+await app.register(usersPlugin, { path: '/users' });
+await app.listen();
+```
+
+### Nested Plugins
+
+Plugins can register other plugins, creating nested path hierarchies:
+
+```typescript
+const adminPlugin: WorkerifyPlugin = (app) => {
+  app.get('/dashboard', async () => ({ dashboard: 'Admin Dashboard' }));
+  // → /api/v1/users/admin/dashboard
+};
+
+const usersPlugin: WorkerifyPlugin = async (app) => {
+  app.get('/list', async () => ({ users: [] }));
+  // → /api/v1/users/list
+
+  // Register nested plugin
+  await app.register(adminPlugin, { path: '/admin' });
+};
+
+const app = new Workerify({ scope: '/api/v1' });
+await app.register(usersPlugin, { path: '/users' });
+await app.listen();
+```
+
+### Plugin with Options
+
+Plugins can accept custom options for configuration:
+
+```typescript
+interface AuthPluginOptions {
+  secret: string;
+  tokenExpiry?: number;
+}
+
+const authPlugin: WorkerifyPlugin = (app, options: AuthPluginOptions) => {
+  const { secret, tokenExpiry = 3600 } = options;
+
+  app.post('/login', async (request) => {
+    // Use secret and tokenExpiry
+    return { token: 'generated-token', expiresIn: tokenExpiry };
+  });
+
+  app.post('/logout', async (request) => {
+    return { success: true };
+  });
+};
+
+const app = new Workerify();
+await app.register(authPlugin, {
+  path: '/auth',
+  secret: 'my-secret-key',
+  tokenExpiry: 7200,
+});
+await app.listen();
+```
+
+### Real-World Plugin Example: API Versioning
+
+```typescript
+const v1Plugin: WorkerifyPlugin = (app) => {
+  app.get('/users', async () => ({ version: 'v1', users: [] }));
+  app.get('/posts', async () => ({ version: 'v1', posts: [] }));
+};
+
+const v2Plugin: WorkerifyPlugin = (app) => {
+  app.get('/users', async () => ({ version: 'v2', users: [], metadata: {} }));
+  app.get('/posts', async () => ({ version: 'v2', posts: [], metadata: {} }));
+};
+
+const app = new Workerify({ scope: '/api' });
+
+await app.register(v1Plugin, { path: '/v1' });
+await app.register(v2Plugin, { path: '/v2' });
+
+await app.listen();
+
+// Routes created:
+// - /api/v1/users
+// - /api/v1/posts
+// - /api/v2/users
+// - /api/v2/posts
+```
+
+### Real-World Plugin Example: Microservices Pattern
+
+```typescript
+const authService: WorkerifyPlugin = (app) => {
+  app.post('/login', async (request) => ({ token: 'jwt-token' }));
+  app.post('/logout', async () => ({ success: true }));
+  app.post('/refresh', async (request) => ({ token: 'new-token' }));
+};
+
+const userService: WorkerifyPlugin = (app) => {
+  app.get('/', async () => ({ users: [] }));
+  app.get('/:id', async (request) => ({ id: request.params.id }));
+  app.post('/', async (request) => ({ created: true }));
+};
+
+const productService: WorkerifyPlugin = (app) => {
+  app.get('/', async () => ({ products: [] }));
+  app.post('/', async (request) => ({ created: true }));
+};
+
+const app = new Workerify({ scope: '/api' });
+
+await app.register(authService, { path: '/auth' });
+await app.register(userService, { path: '/users' });
+await app.register(productService, { path: '/products' });
+
+await app.listen();
+
+// Routes created:
+// - /api/auth/login
+// - /api/auth/logout
+// - /api/auth/refresh
+// - /api/users/
+// - /api/users/:id
+// - /api/products/
+```
+
+### Plugin Features
+
+- **Path Prefix Isolation**: Each plugin's routes are isolated with their own path prefix
+- **Nested Plugins**: Plugins can register sub-plugins, creating hierarchical path structures
+- **Custom Options**: Pass configuration data to plugins
+- **Async Support**: Plugins can be async functions
+- **Method Chaining**: `register()` returns the Workerify instance for chaining
+- **Error Handling**: Plugin prefix cleanup happens even if plugin throws an error
+
 ## Hooks System
 
 Workerify implements a comprehensive lifecycle hooks system similar to Fastify, allowing you to intercept and modify the request/response lifecycle at various points.
